@@ -1,142 +1,154 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+import { scaleLinear } from "@visx/scale";
+import { AxisBottom } from "@visx/axis";
+import { ParentSize } from "@visx/responsive";
 import type { Plan } from "@/api";
 import { fmtTime } from "@/api";
 
 interface Props {
   plan: Plan;
-  pos: number;                       // current playback time (s)
+  pos: number;
   colorHex: Record<string, string>;
   onSeek: (t: number) => void;
 }
 
-const GUTTER = 104;                  // left label column
-const PADR = 14;
-const BR_H = 44;                     // brightness lane
-const COL_H = 16;                    // colour lane
-const DIR_H = 18;                    // direction-marker lane
-const SUB_H = 10;                    // colour sub-lane within a family group
-const GROUP_GAP = 8;
-const GAP = 8;
-const AXIS_H = 18;
-const TOP = 6;
+const WIN = 30;                      // seconds visible at once
+const GUTTER = 96, PADR = 12, TOP = 4;
+const BR_H = 40, COL_H = 14, DIR_H = 16, SUB_H = 9, GROUP_GAP = 7, GAP = 7, AXIS_H = 22;
+const OV_H = 46, OV_STRIP = 12;
 
-// One large graph: y is split into family GROUPS, each group split into colour
-// sub-lanes (low→high frequency); x is time. Segments are blocks at (family,
-// colour). Direction flips are marked with arrows + faint vertical lines. A
-// draggable playhead seeks playback.
-export default function TrackTimeline({ plan, pos, colorHex, onSeek }: Props) {
-  const cv = useRef<HTMLCanvasElement>(null);
-  const dragging = useRef(false);
+export default function TrackTimeline(props: Props) {
+  return (
+    <div className="bg-panel border border-line rounded-xl p-3">
+      <div className="text-xs text-[#c7ccd8] font-medium mb-2">
+        Song timeline <span className="text-[11px] text-dim font-normal">— 30 s window, centred playhead · family × colour (low→high freq) · ▶◀ direction · drag to seek</span>
+      </div>
+      <ParentSize>{({ width }) => (width > 0 ? <Chart {...props} width={width} /> : null)}</ParentSize>
+    </div>
+  );
+}
+
+function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }) {
   const freq = plan.freq_colors?.length ? plan.freq_colors : ["RD", "VT", "BU", "GN", "YE", "WH"];
   const nSub = freq.length;
   const groups = plan.families;
+  const dur = plan.duration || 1;
+  const W = width;
 
   const colY = TOP + BR_H + GAP;
   const dirY = colY + COL_H + GAP;
   const modesTop = dirY + DIR_H + GAP;
   const groupH = nSub * SUB_H;
   const modesH = groups.length * groupH + Math.max(0, groups.length - 1) * GROUP_GAP;
-  const totalH = modesTop + modesH + GAP + AXIS_H;
-
-  // y of a (group index, colour index within freq) sub-lane top
+  const modesBottom = modesTop + modesH;
+  const mainH = modesBottom + GAP + AXIS_H;
   const subTop = (g: number, ci: number) => modesTop + g * (groupH + GROUP_GAP) + ci * SUB_H;
 
-  useEffect(() => {
-    const c = cv.current; if (!c) return;
-    const W = (c.width = c.clientWidth);
-    const H = (c.height = totalH);
-    const x = c.getContext("2d")!;
-    const dur = plan.duration || 1;
-    const plotW = W - GUTTER - PADR;
-    const X = (t: number) => GUTTER + (t / dur) * plotW;
+  // 30 s window centred on the playhead (clamped to the song ends)
+  const winStart = Math.max(0, Math.min(pos - WIN / 2, Math.max(0, dur - WIN)));
+  const winEnd = winStart + WIN;
+  const x = scaleLinear({ domain: [winStart, winEnd], range: [GUTTER, W - PADR] });
+  const xAll = scaleLinear({ domain: [0, dur], range: [6, W - 6] });
 
-    x.clearRect(0, 0, W, H);
-    x.font = "10px system-ui"; x.textBaseline = "middle";
-    const lane = (y: number, h: number, c2 = "#0a0c11") => { x.fillStyle = c2; x.fillRect(GUTTER, y, plotW, h); };
-    const rlabel = (s: string, y: number, col = "#7b8395") => { x.fillStyle = col; x.textAlign = "right"; x.fillText(s, GUTTER - 8, y); };
+  const mainRef = useRef<SVGSVGElement>(null);
+  const ovRef = useRef<SVGSVGElement>(null);
+  const drag = useRef<null | "main" | "ov">(null);
+  const seekFrom = (svg: SVGSVGElement | null, scale: any, clientX: number) => {
+    if (!svg) return;
+    const r = svg.getBoundingClientRect();
+    const t = scale.invert(clientX - r.left);
+    onSeek(Math.max(0, Math.min(dur, t)));
+  };
 
-    // --- brightness lane ---
-    lane(TOP, BR_H); rlabel("Brightness", TOP + BR_H / 2);
-    const lv = plan.level, st = plan.sig_t, n = lv.length;
-    if (n) {
-      x.beginPath(); x.moveTo(GUTTER, TOP + BR_H);
-      for (let i = 0; i < n; i++) x.lineTo(X(st[i]), TOP + BR_H - lv[i] * (BR_H - 2));
-      x.lineTo(GUTTER + plotW, TOP + BR_H); x.closePath(); x.fillStyle = "#5ad28a22"; x.fill();
-      x.beginPath();
-      for (let i = 0; i < n; i++) { const px = X(st[i]), py = TOP + BR_H - lv[i] * (BR_H - 2); i ? x.lineTo(px, py) : x.moveTo(px, py); }
-      x.strokeStyle = "#5ad28a"; x.lineWidth = 1.4; x.stroke();
-    }
+  const st = plan.sig_t, lv = plan.level;
+  const rlabel = (s: string, y: number, col = "#7b8395") =>
+    <text x={GUTTER - 8} y={y} fill={col} fontSize={10} textAnchor="end" dominantBaseline="middle">{s}</text>;
 
-    // --- colour lane ---
-    rlabel("Colour", colY + COL_H / 2);
-    for (let i = 0; i < n; i++) {
-      const x0 = X(st[i]), x1 = i + 1 < n ? X(st[i + 1]) : GUTTER + plotW;
-      x.fillStyle = colorHex[plan.scolor[i]] || "#333";
-      x.fillRect(x0, colY, Math.max(1, x1 - x0) + 0.5, COL_H);
-    }
-
-    // --- modes: family groups, each with colour sub-lanes (low→high freq) ---
-    groups.forEach((fam, g) => {
-      for (let ci = 0; ci < nSub; ci++) {
-        const y = subTop(g, ci);
-        lane(y, SUB_H - 1, ci % 2 ? "#0b0e14" : "#0a0c11");
-        x.fillStyle = colorHex[freq[ci]] || "#444";                 // colour swatch for the lane
-        x.fillRect(GUTTER + 1, y + 1, 4, SUB_H - 3);
-      }
-      // group label centred over its sub-lanes
-      rlabel(fam, subTop(g, 0) + groupH / 2, "#c7ccd8");
-    });
-    for (const s of plan.segments) {
-      const g = groups.indexOf(s.family); if (g < 0) continue;
-      let ci = freq.indexOf(s.color); if (ci < 0) ci = nSub - 1;
-      const y = subTop(g, ci);
-      const x0 = X(s.t0), w = Math.max(2, X(s.t1) - x0 - 1);
-      x.fillStyle = colorHex[s.color] || "#888";
-      x.fillRect(x0, y + 1, w, SUB_H - 2);
-      if (s.kind === "strobe") { x.fillStyle = "#0a0c11"; for (let gx = x0 + 2; gx < x0 + w; gx += 4) x.fillRect(gx, y + 1, 1, SUB_H - 2); }
-    }
-
-    // --- direction-switch markers ---
-    rlabel("Dir", dirY + DIR_H / 2, "#9aa3b5");
-    const modesBottom = modesTop + modesH;
-    x.textAlign = "center";
-    for (const mk of plan.dir_marks || []) {
-      const mx = X(mk.t);
-      x.strokeStyle = "#ffffff18"; x.lineWidth = 1; x.setLineDash([3, 3]);
-      x.beginPath(); x.moveTo(mx, dirY); x.lineTo(mx, modesBottom); x.stroke(); x.setLineDash([]);
-      x.fillStyle = mk.fwd ? "#5ad28a" : "#e0a050";
-      x.fillText(mk.fwd ? "▶" : "◀", mx, dirY + DIR_H / 2);
-    }
-
-    // --- time axis ---
-    const ay = modesBottom + GAP + 2;
-    x.fillStyle = "#5b6273"; x.textAlign = "center";
-    for (let k = 0; k <= 6; k++) { const t = (dur * k) / 6; x.fillText(fmtTime(t), X(t), ay + 7); }
-
-    // --- playhead ---
-    const ph = X(Math.max(0, Math.min(pos, dur)));
-    x.strokeStyle = "#ffffff"; x.lineWidth = 1.5;
-    x.beginPath(); x.moveTo(ph, TOP); x.lineTo(ph, modesBottom); x.stroke();
-    x.fillStyle = "#ffffff";
-    x.beginPath(); x.moveTo(ph - 4, TOP); x.lineTo(ph + 4, TOP); x.lineTo(ph, TOP + 5); x.closePath(); x.fill();
-  }, [plan, pos, colorHex, totalH, groups, freq, nSub, colY, dirY, modesTop, groupH, modesH]);
-
-  function seekAt(clientX: number) {
-    const c = cv.current!; const rc = c.getBoundingClientRect();
-    const plotW = rc.width - GUTTER - PADR;
-    const t = ((clientX - rc.left - GUTTER) / plotW) * plan.duration;
-    onSeek(Math.max(0, Math.min(plan.duration, t)));
+  // brightness path within the window
+  let bpath = "";
+  for (let i = 0; i < st.length; i++) {
+    if (st[i] < winStart - 1 || st[i] > winEnd + 1) continue;
+    bpath += `${bpath ? "L" : "M"}${x(st[i]).toFixed(1)} ${(TOP + BR_H - lv[i] * (BR_H - 2)).toFixed(1)} `;
+  }
+  // overview brightness sparkline
+  let ovpath = "";
+  for (let i = 0; i < st.length; i++) {
+    ovpath += `${ovpath ? "L" : "M"}${xAll(st[i]).toFixed(1)} ${(OV_H - lv[i] * (OV_H - OV_STRIP - 2)).toFixed(1)} `;
   }
 
   return (
-    <div className="bg-panel border border-line rounded-xl p-3">
-      <div className="text-xs text-[#c7ccd8] font-medium mb-1.5">
-        Song timeline <span className="text-[11px] text-dim font-normal">— family groups × colour (low→high freq) over time · ▶◀ = direction switch · drag to seek</span>
-      </div>
-      <canvas ref={cv} className="w-full block cursor-pointer touch-none" style={{ height: totalH }}
-              onPointerDown={(e) => { dragging.current = true; (e.target as HTMLElement).setPointerCapture(e.pointerId); seekAt(e.clientX); }}
-              onPointerMove={(e) => { if (dragging.current) seekAt(e.clientX); }}
-              onPointerUp={() => { dragging.current = false; }} />
-    </div>
+    <>
+      <svg ref={mainRef} width={W} height={mainH} className="block touch-none cursor-pointer select-none"
+           onPointerDown={(e) => { drag.current = "main"; (e.target as Element).setPointerCapture?.(e.pointerId); seekFrom(mainRef.current, x, e.clientX); }}
+           onPointerMove={(e) => { if (drag.current === "main") seekFrom(mainRef.current, x, e.clientX); }}
+           onPointerUp={() => { drag.current = null; }}>
+        {/* brightness lane */}
+        <rect x={GUTTER} y={TOP} width={W - PADR - GUTTER} height={BR_H} fill="#0a0c11" />
+        {rlabel("Brightness", TOP + BR_H / 2)}
+        <path d={`${bpath}L${(W - PADR)} ${TOP + BR_H} L${GUTTER} ${TOP + BR_H} Z`} fill="#5ad28a22" />
+        <path d={bpath} fill="none" stroke="#5ad28a" strokeWidth={1.4} />
+
+        {/* colour lane */}
+        {rlabel("Colour", colY + COL_H / 2)}
+        {st.map((t, i) => (t >= winStart - 1 && t <= winEnd) ? (
+          <rect key={i} x={x(t)} y={colY} width={Math.max(1, (i + 1 < st.length ? x(st[i + 1]) : x(winEnd)) - x(t)) + 0.5}
+                height={COL_H} fill={colorHex[plan.scolor[i]] || "#333"} />
+        ) : null)}
+
+        {/* direction markers */}
+        {rlabel("Dir", dirY + DIR_H / 2, "#9aa3b5")}
+        {(plan.dir_marks || []).filter((m) => m.t >= winStart && m.t <= winEnd).map((m, k) => (
+          <g key={k}>
+            <line x1={x(m.t)} y1={dirY} x2={x(m.t)} y2={modesBottom} stroke="#ffffff18" strokeDasharray="3 3" />
+            <text x={x(m.t)} y={dirY + DIR_H / 2} fill={m.fwd ? "#5ad28a" : "#e0a050"} fontSize={11} textAnchor="middle" dominantBaseline="middle">{m.fwd ? "▶" : "◀"}</text>
+          </g>
+        ))}
+
+        {/* mode rows: family groups × colour sub-lanes */}
+        {groups.map((fam, g) => (
+          <g key={fam}>
+            {freq.map((c, ci) => (
+              <g key={ci}>
+                <rect x={GUTTER} y={subTop(g, ci)} width={W - PADR - GUTTER} height={SUB_H - 1} fill={ci % 2 ? "#0b0e14" : "#0a0c11"} />
+                <rect x={GUTTER + 1} y={subTop(g, ci) + 1} width={4} height={SUB_H - 3} fill={colorHex[c] || "#444"} />
+              </g>
+            ))}
+            {rlabel(fam, subTop(g, 0) + groupH / 2, "#c7ccd8")}
+          </g>
+        ))}
+        {plan.segments.filter((s) => s.t1 > winStart && s.t0 < winEnd && groups.includes(s.family)).map((s, k) => {
+          const g = groups.indexOf(s.family);
+          let ci = freq.indexOf(s.color); if (ci < 0) ci = nSub - 1;
+          const x0 = x(Math.max(s.t0, winStart)), x1 = x(Math.min(s.t1, winEnd));
+          return <rect key={k} x={x0} y={subTop(g, ci) + 1} width={Math.max(2, x1 - x0)} height={SUB_H - 2}
+                       fill={colorHex[s.color] || "#888"} opacity={s.kind === "strobe" ? 0.7 : 1} />;
+        })}
+
+        <AxisBottom top={modesBottom + 2} scale={x} numTicks={6} stroke="#2a3142" tickStroke="#2a3142"
+                    tickFormat={(v) => fmtTime(v as number)}
+                    tickLabelProps={() => ({ fill: "#5b6273", fontSize: 9, textAnchor: "middle" })} />
+
+        {/* playhead (centred) */}
+        <line x1={x(pos)} y1={TOP} x2={x(pos)} y2={modesBottom} stroke="#fff" strokeWidth={1.5} />
+        <polygon points={`${x(pos) - 4},${TOP} ${x(pos) + 4},${TOP} ${x(pos)},${TOP + 5}`} fill="#fff" />
+      </svg>
+
+      {/* overview / window selector */}
+      <div className="text-[10px] text-dim mt-2 mb-1">overview — click or drag to jump anywhere</div>
+      <svg ref={ovRef} width={W} height={OV_H} className="block touch-none cursor-pointer select-none rounded bg-panel2"
+           onPointerDown={(e) => { drag.current = "ov"; (e.target as Element).setPointerCapture?.(e.pointerId); seekFrom(ovRef.current, xAll, e.clientX); }}
+           onPointerMove={(e) => { if (drag.current === "ov") seekFrom(ovRef.current, xAll, e.clientX); }}
+           onPointerUp={() => { drag.current = null; }}>
+        {st.map((t, i) => (
+          <rect key={i} x={xAll(t)} y={0} width={Math.max(1, (i + 1 < st.length ? xAll(st[i + 1]) : W - 6) - xAll(t)) + 0.5}
+                height={OV_STRIP} fill={colorHex[plan.scolor[i]] || "#333"} />
+        ))}
+        <path d={ovpath} fill="none" stroke="#5ad28a" strokeWidth={1} opacity={0.8} />
+        {/* current window */}
+        <rect x={xAll(winStart)} y={0} width={Math.max(2, xAll(winEnd) - xAll(winStart))} height={OV_H}
+              fill="#5b8cff22" stroke="#5b8cff" strokeWidth={1} />
+        <line x1={xAll(pos)} y1={0} x2={xAll(pos)} y2={OV_H} stroke="#fff" strokeWidth={1} />
+      </svg>
+    </>
   );
 }
