@@ -1,4 +1,7 @@
 import { useEffect, useRef } from "react";
+import { sectionTop, h2 } from "../ui";
+
+const padCls = "h-[62px] rounded-xl border border-black/30 cursor-pointer flex flex-col items-center justify-center text-xs font-semibold text-white select-none transition-[transform,filter] active:scale-[.93] active:brightness-150 [text-shadow:0_1px_3px_#0008]";
 
 interface Pad { label: string; key: string; hex: string; note?: number; fx?: "kick" | "snare" | "hat"; mode?: number }
 
@@ -55,7 +58,7 @@ export default function Soundboard({ act }: { act: (u: string) => void }) {
   }
   function fire(p: Pad) {
     const el = els.current[p.key];
-    if (el) { el.classList.add("hit"); setTimeout(() => el.classList.remove("hit"), 110); }
+    if (el) { el.classList.add("pad-hit"); setTimeout(() => el.classList.remove("pad-hit"), 110); }
     if (p.fx === "kick") kick(); else if (p.fx === "snare") noise(0.18); else if (p.fx === "hat") noise(0.05, true); else if (p.note) tone(p.note);
     if (p.mode) act("/api/mode?m=" + p.mode); else act("/api/color?hex=" + p.hex);
   }
@@ -71,13 +74,13 @@ export default function Soundboard({ act }: { act: (u: string) => void }) {
   });
 
   return (
-    <div className="board">
-      <h2>Soundboard <span className="boardsub">— click pads or use your keyboard (sound + light hit)</span></h2>
-      <div className="pads">
+    <div className={sectionTop}>
+      <h2 className={h2}>Soundboard <span className="normal-case tracking-normal text-dim font-normal">— click pads or use your keyboard (sound + light hit)</span></h2>
+      <div className="grid grid-cols-12 max-[800px]:grid-cols-6 gap-2">
         {PADS.map((p) => (
-          <div key={p.key} ref={(e) => { els.current[p.key] = e; }} className="pad"
+          <div key={p.key} ref={(e) => { els.current[p.key] = e; }} className={padCls}
                style={{ background: darken(p.hex, 0.62) }} onClick={() => fire(p)}>
-            {p.label}<span className="pk">{p.key.toUpperCase()}</span>
+            {p.label}<span className="text-[10px] font-normal opacity-80 mt-[3px]">{p.key.toUpperCase()}</span>
           </div>
         ))}
       </div>

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { h2, row, btn, cx } from "../ui";
 
 const SWATCHES = ["#ff0000", "#ff7a00", "#ffd400", "#33ff00", "#00ffd0", "#0066ff", "#a000ff", "#ffffff"];
 
@@ -63,21 +64,23 @@ export default function PowerColor({ act }: { act: (u: string) => void }) {
   }, [act]);
 
   return (
-    <section className="col">
-      <h2>Power &amp; Color</h2>
-      <div className="row" style={{ marginTop: 0 }}>
-        <button className="on" onClick={() => act("/api/power?on=1")}>ON</button>
-        <button className="off" onClick={() => act("/api/power?on=0")}>OFF</button>
+    <section className="min-w-0">
+      <h2 className={h2}>Power &amp; Color</h2>
+      <div className={cx(row, "mt-0")}>
+        <button className={cx(btn, "!bg-on")} onClick={() => act("/api/power?on=1")}>ON</button>
+        <button className={cx(btn, "!bg-off")} onClick={() => act("/api/power?on=0")}>OFF</button>
       </div>
-      <div className="wheelwrap">
-        <canvas ref={wheel} id="wheel" />
-        <div ref={marker} id="marker" />
+      <div className="relative w-[200px] h-[200px] mx-auto mt-2 mb-1.5 touch-none">
+        <canvas ref={wheel} className="rounded-full cursor-crosshair block shadow-[0_0_0_1px_#2a3142]" />
+        <div ref={marker} className="absolute w-[18px] h-[18px] rounded-full border-2 border-white shadow-[0_0_0_1px_#0009] -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+             style={{ left: 100, top: 100 }} />
       </div>
       <input ref={colInput} type="color" defaultValue="#ff0000"
              onInput={(e) => setColor((e.target as HTMLInputElement).value.replace("#", ""))} />
-      <div className="swatches">
+      <div className="grid grid-cols-8 gap-1.5 mt-2">
         {SWATCHES.map((c) => (
-          <div key={c} className="sw" style={{ background: c }} onClick={() => setColor(c.replace("#", ""))} />
+          <div key={c} className="h-[26px] rounded-md cursor-pointer border border-black/40"
+               style={{ background: c }} onClick={() => setColor(c.replace("#", ""))} />
         ))}
       </div>
     </section>

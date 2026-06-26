@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CmdStats } from "../api";
 import { get } from "../api";
+import { btnMini, val } from "../ui";
 
 export default function CommandRate({ cmds }: { cmds: CmdStats | null }) {
   const cg = useRef<HTMLCanvasElement>(null);
@@ -36,14 +37,14 @@ export default function CommandRate({ cmds }: { cmds: CmdStats | null }) {
   }
 
   return (
-    <div className="cmdwrap">
-      <label>
-        Commands sent to strip <span className="val">{cmds?.rate ?? 0} /s</span>
-        <span className="muted"> {cmds ? `${cmds.total} total · ${cmds.dropped} dropped` : ""}</span>
-        <button className="mini" style={{ float: "right" }} onClick={benchmark}>Benchmark strip max-rate</button>
-        <span className="muted" style={{ float: "right", marginRight: 8 }}>{bench}</span>
+    <div className="mt-[22px] pt-[14px] border-t border-line">
+      <label className="block text-xs text-mute mb-1.5">
+        Commands sent to strip <span className={val}>{cmds?.rate ?? 0} /s</span>
+        <span className="text-dim"> {cmds ? `${cmds.total} total · ${cmds.dropped} dropped` : ""}</span>
+        <button className={btnMini + " float-right"} onClick={benchmark}>Benchmark strip max-rate</button>
+        <span className="text-dim float-right mr-2">{bench}</span>
       </label>
-      <canvas ref={cg} />
+      <canvas ref={cg} className="w-full h-[72px] bg-panel2 border border-line rounded-[10px] mt-1" />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import type {
   CmdStats, FamilyInfo, ModeGroup, MusicState, PlayerState, Telemetry as TelemetryT,
 } from "./api";
 import { api, get } from "./api";
+import { card, sectionTop, cx } from "./ui";
 import PowerColor from "./components/PowerColor";
 import Effects from "./components/Effects";
 import MusicEngine from "./components/MusicEngine";
@@ -121,9 +122,15 @@ export default function App() {
   }, [act]);
 
   return (
-    <div className="card">
-      <h1>audiolux <span className={"pill " + (connected ? "ok" : "bad")}>{connected ? "connected" : "not connected"}</span></h1>
-      <div className="sub">strip: LEDDMX-03-1821 · music-reactive LED control</div>
+    <div className={card}>
+      <h1 className="text-lg m-0 mb-1 tracking-[.3px]">
+        audiolux
+        <span className={cx("text-[11px] px-2.5 py-0.5 rounded-full align-middle ml-1.5",
+          connected ? "bg-[#163a2a] text-[#57d090]" : "bg-[#3a1820] text-[#e0667a]")}>
+          {connected ? "connected" : "not connected"}
+        </span>
+      </h1>
+      <div className="text-mute text-xs mb-4">strip: LEDDMX-03-1821 · music-reactive LED control</div>
 
       <Player ref={playerRef} active={!micOn} smart={smart} onSmart={onSmart}
               strobe={strobe} onStrobe={onStrobe}
@@ -134,7 +141,7 @@ export default function App() {
                    barColors={barColors} num2name={num2name} />
       )}
 
-      <div className="cols">
+      <div className={cx(sectionTop, "grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-[26px] items-start")}>
         <PowerColor act={act} />
         <Effects act={act} groups={groups} />
         <MusicEngine act={act} families={families} micOn={micOn} onMicChange={setMicOn} />
@@ -143,7 +150,8 @@ export default function App() {
       <Soundboard act={act} />
       <CommandRate cmds={cmds} />
 
-      <div className="statusbar" style={{ color: status.ok ? "#5aa9ff" : "#e0667a" }}>{status.msg}</div>
+      <div className="mt-[18px] pt-2.5 text-xs min-h-4 border-t border-line"
+           style={{ color: status.ok ? "#5aa9ff" : "#e0667a" }}>{status.msg}</div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { ModeGroup, EffectMode } from "../api";
+import { h2, row, btn, label, val, cx } from "../ui";
 
 function modeNum(e: EffectMode, forward: boolean): number {
   if ("single" in e) return e.single!;
@@ -41,20 +42,20 @@ export default function Effects({ act, groups }: { act: (u: string) => void; gro
 
   let flat = 0;
   return (
-    <section className="col">
-      <h2>Adjust &amp; Effects</h2>
-      <label>Brightness <span className="val">{bright}</span></label>
+    <section className="min-w-0">
+      <h2 className={h2}>Adjust &amp; Effects</h2>
+      <label className={label}>Brightness <span className={val}>{bright}</span></label>
       <input type="range" min={1} max={100} value={bright}
              onChange={(e) => setBright(+e.target.value)}
              onMouseUp={() => act("/api/bright?v=" + bright)}
              onTouchEnd={() => act("/api/bright?v=" + bright)} />
-      <label>Speed <span className="val">{speed}</span></label>
+      <label className={label}>Speed <span className={val}>{speed}</span></label>
       <input type="range" min={1} max={100} value={speed}
              onChange={(e) => setSpeed(+e.target.value)}
              onMouseUp={() => act("/api/speed?v=" + speed)}
              onTouchEnd={() => act("/api/speed?v=" + speed)} />
 
-      <label>Effect (grouped by family)</label>
+      <label className={label}>Effect (grouped by family)</label>
       <select value={sel} onChange={(e) => chooseMode(+e.target.value)}>
         {groups.map((g) => (
           <optgroup key={g.family} label={g.family}>
@@ -66,20 +67,20 @@ export default function Effects({ act, groups }: { act: (u: string) => void; gro
         ))}
       </select>
 
-      <label>Direction <span className="val">#{md}</span></label>
-      <div className="row" style={{ marginTop: 0 }}>
-        <button className={fwd ? "on" : ""} disabled={single} onClick={() => setDir(true)}>
+      <label className={label}>Direction <span className={val}>#{md}</span></label>
+      <div className={cx(row, "mt-0")}>
+        <button className={cx(btn, fwd && "!bg-on")} disabled={single} onClick={() => setDir(true)}>
           {oc ? "⤢ Open" : "⟶ Forward"}
         </button>
-        <button className={!fwd ? "on" : ""} disabled={single} onClick={() => setDir(false)}>
+        <button className={cx(btn, !fwd && "!bg-on")} disabled={single} onClick={() => setDir(false)}>
           {oc ? "⤡ Close" : "⟵ Backward"}
         </button>
       </div>
-      <div className="mode" style={{ marginTop: 12 }}>
-        <button onClick={() => go((parseInt(md) || 1) - 1)}>‹ Prev</button>
-        <input type="number" min={1} max={255} value={md} onChange={(e) => setMd(e.target.value)} />
-        <button onClick={() => go((parseInt(md) || 1) + 1)}>Next ›</button>
-        <button style={{ flex: 0.7 }} onClick={() => go(parseInt(md) || 1)}>Go</button>
+      <div className="flex gap-2 items-center mt-3">
+        <button className={btn} onClick={() => go((parseInt(md) || 1) - 1)}>‹ Prev</button>
+        <input className="flex-1 text-center" type="number" min={1} max={255} value={md} onChange={(e) => setMd(e.target.value)} />
+        <button className={btn} onClick={() => go((parseInt(md) || 1) + 1)}>Next ›</button>
+        <button className={cx(btn, "!flex-[0.7]")} onClick={() => go(parseInt(md) || 1)}>Go</button>
       </div>
     </section>
   );

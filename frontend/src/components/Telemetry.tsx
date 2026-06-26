@@ -1,5 +1,10 @@
 import { useEffect, useRef } from "react";
 import type { Telemetry as T } from "../api";
+import { sectionTop, h2, card2, ro, note } from "../ui";
+
+const roSpan = "block text-[10px] text-mute uppercase tracking-[.5px]";
+const tlabel = "text-xs text-[#c7ccd8] font-medium mb-1.5";
+const canvasCls = "w-full h-[150px] bg-panel2 rounded-lg";
 
 export interface HistPoint { level: number; bright: number; color: string; centroid: number }
 
@@ -76,31 +81,32 @@ export default function Telemetry({ telem, hist, colorHex, barColors, num2name }
 
   const t = telem;
   const beatOn = (t?.beat_flash || 0) > 0.2;
+  const dot = "inline-block w-3 h-3 rounded-full align-[-1px] mr-[5px]";
   return (
-    <div className="telemetry">
-      <h2>Live telemetry — what the music says vs what the light does</h2>
-      <div className="readouts">
-        <div className="ro"><span>BPM</span><b>{t && t.bpm > 0 ? t.bpm : "—"}</b></div>
-        <div className="ro"><span>Beat</span><b><i className="beatDot" style={{ background: beatOn ? "#57d090" : "#2a3142", transform: `scale(${1 + (t?.beat_flash || 0) * 0.6})` }} /></b></div>
-        {t?.C != null && <div className="ro"><span>Threshold C</span><b>{t.C}</b></div>}
-        {t?.mood != null && <div className="ro"><span>Mood</span><b>{t.mood}</b></div>}
-        <div className="ro"><span>Colour</span><b><i className="colDot" style={{ background: colorHex[t?.color || ""] || "#2a3142" }} />{t?.color || "—"}</b></div>
-        <div className="ro fam"><span>Family</span><b>{t?.family || "—"}</b></div>
-        <div className="ro mode"><span>Effect</span><b>{t?.mode ? (num2name[t.mode] || "#" + t.mode) : "—"}</b></div>
-        <div className="ro"><span>Dir</span><b>{t?.direction === "bwd" ? "◀ back" : "▶ fwd"}</b></div>
+    <div className={sectionTop}>
+      <h2 className={h2}>Live telemetry — what the music says vs what the light does</h2>
+      <div className="flex flex-wrap gap-2 mb-3">
+        <div className={ro}><span className={roSpan}>BPM</span><b className="text-[15px] tabular-nums">{t && t.bpm > 0 ? t.bpm : "—"}</b></div>
+        <div className={ro}><span className={roSpan}>Beat</span><b><i className="inline-block w-3.5 h-3.5 rounded-full transition-transform" style={{ background: beatOn ? "#57d090" : "#2a3142", transform: `scale(${1 + (t?.beat_flash || 0) * 0.6})` }} /></b></div>
+        {t?.C != null && <div className={ro}><span className={roSpan}>Threshold C</span><b className="text-[15px] tabular-nums">{t.C}</b></div>}
+        {t?.mood != null && <div className={ro}><span className={roSpan}>Mood</span><b className="text-[15px]">{t.mood}</b></div>}
+        <div className={ro}><span className={roSpan}>Colour</span><b className="text-[15px]"><i className={dot} style={{ background: colorHex[t?.color || ""] || "#2a3142" }} />{t?.color || "—"}</b></div>
+        <div className={ro}><span className={roSpan}>Family</span><b className="text-xs">{t?.family || "—"}</b></div>
+        <div className={ro}><span className={roSpan}>Effect</span><b className="text-xs">{t?.mode ? (num2name[t.mode] || "#" + t.mode) : "—"}</b></div>
+        <div className={ro}><span className={roSpan}>Dir</span><b className="text-[15px]">{t?.direction === "bwd" ? "◀ back" : "▶ fwd"}</b></div>
       </div>
-      <div className="tgrid">
-        <div className="tcard">
-          <div className="tlabel">Spectrum <span className="tnote">(bars coloured by frequency→colour band)</span></div>
-          <canvas ref={spec} />
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
+        <div className={card2}>
+          <div className={tlabel}>Spectrum <span className={note}>(bars coloured by frequency→colour band)</span></div>
+          <canvas ref={spec} className={canvasCls} />
         </div>
-        <div className="tcard">
-          <div className="tlabel">Loudness → Brightness <span className="tnote"><b style={{ color: "#7fd0ff" }}>level(target)</b> · <b style={{ color: "#5ad28a" }}>brightness(sent)</b></span></div>
-          <canvas ref={lb} />
+        <div className={card2}>
+          <div className={tlabel}>Loudness → Brightness <span className={note}><b className="text-[#7fd0ff]">level(target)</b> · <b className="text-[#5ad28a]">brightness(sent)</b></span></div>
+          <canvas ref={lb} className={canvasCls} />
         </div>
-        <div className="tcard">
-          <div className="tlabel">Frequency → Colour <span className="tnote">(chosen colour over time · line = spectral centroid)</span></div>
-          <canvas ref={col} />
+        <div className={card2}>
+          <div className={tlabel}>Frequency → Colour <span className={note}>(chosen colour over time · line = spectral centroid)</span></div>
+          <canvas ref={col} className={canvasCls} />
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { PlayerState, SearchResult } from "../api";
 import { fmtTime, get } from "../api";
+import { sectionTop, h2, btn, btnMini, cx } from "../ui";
 
 export interface PlayerHandle { pause: () => void }
 
@@ -121,46 +122,54 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
   }, [ready, active, onTrackState]);
 
   return (
-    <div className="player">
-      <h2>🎬 Music Player
-        <span style={{ float: "right", display: "flex", gap: 6 }}>
-          <button className={"mini" + (smart ? " on" : "")}
+    <div className={sectionTop}>
+      <h2 className={cx(h2, "flex items-center justify-between")}>
+        <span>🎬 Music Player</span>
+        <span className="flex gap-1.5">
+          <button className={cx(btnMini, smart && "!bg-on")}
                   title="Pick the effect family automatically from the music's character (calm/groove/drive/peak)"
                   onClick={() => onSmart(!smart)}>🧠 Smart: {smart ? "ON" : "OFF"}</button>
-          <button className={"mini" + (strobe ? " on" : "")}
+          <button className={cx(btnMini, strobe && "!bg-on")}
                   title="On peaks, flash a coloured strobe in the music's colour (Smart mode only)"
                   onClick={() => onStrobe(!strobe)}>💥 Strobe: {strobe ? "ON" : "OFF"}</button>
         </span>
       </h2>
-      <div className="searchbar">
-        <input placeholder="search a song on YouTube…" value={q}
+      <div className="flex gap-2">
+        <input className="flex-1 px-3 py-[11px] text-sm" placeholder="search a song on YouTube…" value={q}
                onChange={(e) => setQ(e.target.value)}
                onFocus={() => results.length && setShowResults(true)}
                onKeyDown={(e) => e.key === "Enter" && search()} />
-        <button onClick={search} disabled={searching}>{searching ? "…" : "Search"}</button>
+        <button className={cx(btn, "!flex-none px-[18px]")} onClick={search} disabled={searching}>{searching ? "…" : "Search"}</button>
       </div>
 
       {showResults && results.length > 0 && (
-        <div className="results">
+        <div className="my-2.5 max-h-[230px] overflow-y-auto flex flex-col gap-1">
           {results.map((r) => (
-            <div key={r.id} className={"result" + (r.id === activeId ? " active" : "")} onClick={() => choose(r)}>
-              <span className="rtitle">{r.title}{r.uploader && <span className="rup"> · {r.uploader}</span>}</span>
-              <span className="rdur">{fmtTime(r.duration)}</span>
+            <div key={r.id}
+                 className={cx("flex items-center gap-3 px-3 py-2 rounded-[10px] bg-panel border cursor-pointer transition-colors hover:bg-[#1a1f2c]",
+                   r.id === activeId ? "border-accent" : "border-[#1c2230]")}
+                 onClick={() => choose(r)}>
+              <span className="flex-1 min-w-0 truncate text-[13px]">{r.title}{r.uploader && <span className="text-dim text-[11px]"> · {r.uploader}</span>}</span>
+              <span className="text-mute text-xs tabular-nums">{fmtTime(r.duration)}</span>
             </div>
           ))}
         </div>
       )}
 
       {videoId && (
-        <div className="videowrap">
-          <div className="video"><div ref={holder} /></div>
-          <div className="loadnote">
+        <div className="mt-3">
+          <div className="video-frame w-full max-w-[640px] aspect-video mx-auto rounded-xl overflow-hidden bg-black border border-line"><div ref={holder} /></div>
+          <div className="text-xs text-mute mt-2 text-center">
             {load === "error" ? `✗ ${err}` :
               load === "ready" ? "✓ lights synced to this track" :
                 load === "analyzing" ? "analysing audio (beat grid + light timeline)…" :
                   load === "downloading" ? `downloading audio for analysis… ${Math.round(progress * 100)}%` :
                     "preparing…"}
-            {load !== "error" && load !== "ready" && <div className="progress"><div style={{ width: `${Math.round(progress * 100)}%` }} /></div>}
+            {load !== "error" && load !== "ready" && (
+              <div className="h-1.5 bg-line rounded mt-1.5 overflow-hidden max-w-[640px] mx-auto">
+                <div className="h-full bg-accent transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} />
+              </div>
+            )}
           </div>
         </div>
       )}
