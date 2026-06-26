@@ -46,7 +46,6 @@ function lineSeries(x: CanvasRenderingContext2D, hist: HistPoint[], key: keyof H
 
 export default function Telemetry({ telem, hist, colorHex, barColors, num2name, hasTrack }: Props) {
   const spec = useRef<HTMLCanvasElement>(null);
-  const sugg = useRef<HTMLCanvasElement>(null);
   const lb = useRef<HTMLCanvasElement>(null);
   const col = useRef<HTMLCanvasElement>(null);
 
@@ -54,14 +53,7 @@ export default function Telemetry({ telem, hist, colorHex, barColors, num2name, 
   // analysis for the mic) — consistent scaling + colours either way
   useEffect(() => {
     if (spec.current && telem?.spectrum) drawBars(spec.current, telem.spectrum, barColors);
-    // suggested-colour strip: the colour the spectrum implies, over recent time
-    if (sugg.current) {
-      const [x, W, H] = fit(sugg.current);
-      x.clearRect(0, 0, W, H);
-      const n = hist.length;
-      for (let i = 0; i < n; i++) { x.fillStyle = colorHex[hist[i].color] || "#1a1f2c"; x.fillRect((i / n) * W, 0, Math.ceil(W / n) + 1, H); }
-    }
-  }, [telem, hist, barColors, colorHex]);
+  }, [telem, barColors]);
 
   // loudness -> brightness, and frequency -> colour, both from history
   useEffect(() => {
@@ -113,8 +105,6 @@ export default function Telemetry({ telem, hist, colorHex, barColors, num2name, 
           </span>
         </div>
         <canvas ref={spec} className={canvasCls} />
-        <div className="text-[10px] text-dim mt-1.5 mb-0.5">suggested colour over recent time →</div>
-        <canvas ref={sugg} className="w-full h-4 rounded block bg-panel2" />
       </div>
 
       {!hasTrack && (

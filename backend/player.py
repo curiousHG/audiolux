@@ -53,6 +53,7 @@ class PlayerEngine:
         self.brightness_val = 0
         self.speed_val = 0
         self.centroid = 0.0
+        self.bpm_local = 0.0
         self.mood = 0
         self.spectrum = []
         self.beat_flash = 0.0
@@ -105,6 +106,7 @@ class PlayerEngine:
         """Downsampled full-song brightness + colour arrays, plus the times at which
         the effect direction flips, for the timeline view."""
         bright, colors, dt = self.tl["bright"], self.tl["color"], self.tl["dt"]
+        bpmc = self.tl.get("bpm_curve") or []
         m = len(bright)
         step = max(1, m // n)
         idx = range(0, m, step)
@@ -119,6 +121,7 @@ class PlayerEngine:
             "sig_t": [round(i * dt, 2) for i in idx],
             "level": [round(bright[i], 3) for i in idx],
             "scolor": [M.FREQ_COLORS[colors[i]] for i in idx],
+            "bpm_curve": [bpmc[i] for i in idx] if bpmc else [],
             "dir_marks": marks,
             "freq_colors": M.FREQ_COLORS,
         }
@@ -135,6 +138,7 @@ class PlayerEngine:
         self.centroid = self.tl["centroid"][i]
         self.dir_forward = bool(self.tl["dir"][i])
         self.mood = self.tl.get("mood", [0])[i] if self.tl.get("mood") else 0
+        self.bpm_local = self.tl["bpm_curve"][i] if self.tl.get("bpm_curve") else self.tl["bpm"]
         self.spectrum = self.tl.get("spec", [[]])[i] if self.tl.get("spec") else []
 
         beats = self.tl["beats"]
@@ -239,7 +243,7 @@ class PlayerEngine:
             "pos": round(self.pos, 2),
             "track": self.track,
             "duration": self.tl["duration"] if self.loaded else 0,
-            "bpm": self.tl["bpm"] if self.loaded else 0,
+            "bpm": round(self.bpm_local, 1) if self.loaded else 0,
             "beats": self.beat_count,
             "beat_flash": round(self.beat_flash, 3),
             "brightness": self.brightness_val,

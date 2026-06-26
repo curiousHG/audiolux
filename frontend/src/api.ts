@@ -138,6 +138,7 @@ export interface Plan {
   sig_t: number[];
   level: number[];
   scolor: string[];
+  bpm_curve: number[];
   dir_marks: { t: number; fwd: boolean }[];
   freq_colors: string[];
 }

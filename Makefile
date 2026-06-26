@@ -14,12 +14,13 @@ run: build
 	uv run audiolux
 
 # --- development ---
-# ONE URL (http://localhost:8765): backend auto-restarts on .py changes, and the
-# frontend dist auto-rebuilds on save — just reload the browser. (Runs the watcher
-# in the background, then the API in the foreground.)
+# ONE URL (http://localhost:8765) and ONE terminal: backend (auto-restart on .py
+# changes) + frontend dist watcher, with interleaved, colour-prefixed logs.
+# Ctrl+C stops both. Just reload the browser to see frontend changes.
 dev:
-	cd frontend && npm run watch &
-	uv run audiolux
+	cd frontend && npx concurrently -k -n api,web -c cyan,magenta \
+	  "cd $(CURDIR) && uv run audiolux" \
+	  "npm run watch"
 
 # or run the pieces yourself:
 dev-api:        # FastAPI with hot-reload (like Django runserver)

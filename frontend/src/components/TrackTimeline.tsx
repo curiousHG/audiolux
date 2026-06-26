@@ -1,7 +1,6 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { scaleLinear } from "@visx/scale";
 import { AxisBottom } from "@visx/axis";
-import { ParentSize } from "@visx/responsive";
 import type { Plan } from "@/api";
 import { fmtTime } from "@/api";
 
@@ -14,16 +13,30 @@ interface Props {
 
 const WIN = 30;                      // seconds visible at once
 const GUTTER = 96, PADR = 12, TOP = 4;
-const BR_H = 40, COL_H = 14, DIR_H = 16, SUB_H = 9, GROUP_GAP = 7, GAP = 7, AXIS_H = 22;
-const OV_H = 46, OV_STRIP = 12;
+const BPM_H = 28, BR_H = 36, COL_H = 12, DIR_H = 14, MODE_H = 44, SUB_H = 9;
+const GAP = 6, GROUP_GAP = 6, AXIS_H = 20, OV_H = 44, OV_STRIP = 12;
+
+function useWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const update = () => setW(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update); ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, w] as const;
+}
 
 export default function TrackTimeline(props: Props) {
+  const [ref, w] = useWidth();
   return (
     <div className="bg-panel border border-line rounded-xl p-3">
       <div className="text-xs text-[#c7ccd8] font-medium mb-2">
-        Song timeline <span className="text-[11px] text-dim font-normal">— 30 s window, centred playhead · family × colour (low→high freq) · ▶◀ direction · drag to seek</span>
+        Song timeline <span className="text-[11px] text-dim font-normal">— 30 s window, centred playhead · drag to seek · overview below to jump</span>
       </div>
-      <ParentSize>{({ width }) => (width > 0 ? <Chart {...props} width={width} /> : null)}</ParentSize>
+      <div ref={ref}>{w > 0 && <Chart {...props} width={w} />}</div>
     </div>
   );
 }
@@ -35,16 +48,18 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
   const dur = plan.duration || 1;
   const W = width;
 
-  const colY = TOP + BR_H + GAP;
+  const bpmY = TOP;
+  const brY = bpmY + BPM_H + GAP;
+  const colY = brY + BR_H + GAP;
   const dirY = colY + COL_H + GAP;
-  const modesTop = dirY + DIR_H + GAP;
+  const modeLineY = dirY + DIR_H + GAP;
+  const modesTop = modeLineY + MODE_H + GAP;
   const groupH = nSub * SUB_H;
   const modesH = groups.length * groupH + Math.max(0, groups.length - 1) * GROUP_GAP;
   const modesBottom = modesTop + modesH;
   const mainH = modesBottom + GAP + AXIS_H;
   const subTop = (g: number, ci: number) => modesTop + g * (groupH + GROUP_GAP) + ci * SUB_H;
 
-  // 30 s window centred on the playhead (clamped to the song ends)
   const winStart = Math.max(0, Math.min(pos - WIN / 2, Math.max(0, dur - WIN)));
   const winEnd = winStart + WIN;
   const x = scaleLinear({ domain: [winStart, winEnd], range: [GUTTER, W - PADR] });
@@ -55,26 +70,37 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
   const drag = useRef<null | "main" | "ov">(null);
   const seekFrom = (svg: SVGSVGElement | null, scale: any, clientX: number) => {
     if (!svg) return;
-    const r = svg.getBoundingClientRect();
-    const t = scale.invert(clientX - r.left);
+    const t = scale.invert(clientX - svg.getBoundingClientRect().left);
     onSeek(Math.max(0, Math.min(dur, t)));
   };
 
-  const st = plan.sig_t, lv = plan.level;
+  const st = plan.sig_t, lv = plan.level, bp = plan.bpm_curve || [];
   const rlabel = (s: string, y: number, col = "#7b8395") =>
     <text x={GUTTER - 8} y={y} fill={col} fontSize={10} textAnchor="end" dominantBaseline="middle">{s}</text>;
+  const inWin = (i: number) => st[i] >= winStart - 1 && st[i] <= winEnd + 1;
 
-  // brightness path within the window
-  let bpath = "";
+  // BPM curve range
+  const bpmVals = bp.filter((v) => v > 0);
+  const bMin = bpmVals.length ? Math.min(...bpmVals) - 4 : 60;
+  const bMax = bpmVals.length ? Math.max(...bpmVals) + 4 : 180;
+  const yBpm = (v: number) => bpmY + BPM_H - 2 - ((v - bMin) / Math.max(1, bMax - bMin)) * (BPM_H - 4);
+
+  // brightness + bpm paths (within window)
+  let bpath = "", bpmPath = "";
   for (let i = 0; i < st.length; i++) {
-    if (st[i] < winStart - 1 || st[i] > winEnd + 1) continue;
-    bpath += `${bpath ? "L" : "M"}${x(st[i]).toFixed(1)} ${(TOP + BR_H - lv[i] * (BR_H - 2)).toFixed(1)} `;
+    if (!inWin(i)) continue;
+    bpath += `${bpath ? "L" : "M"}${x(st[i]).toFixed(1)} ${(brY + BR_H - lv[i] * (BR_H - 2)).toFixed(1)} `;
+    if (bp[i] > 0) bpmPath += `${bpmPath ? "L" : "M"}${x(st[i]).toFixed(1)} ${yBpm(bp[i]).toFixed(1)} `;
   }
-  // overview brightness sparkline
   let ovpath = "";
-  for (let i = 0; i < st.length; i++) {
+  for (let i = 0; i < st.length; i++)
     ovpath += `${ovpath ? "L" : "M"}${xAll(st[i]).toFixed(1)} ${(OV_H - lv[i] * (OV_H - OV_STRIP - 2)).toFixed(1)} `;
-  }
+
+  // mode line: y = mode number
+  const modeSegs = plan.segments.filter((s) => s.kind === "mode" && s.mode != null);
+  const mm = modeSegs.map((s) => s.mode as number);
+  const mMin = mm.length ? Math.min(...mm) : 1, mMax = mm.length ? Math.max(...mm) : 200;
+  const yMode = (m: number) => modeLineY + MODE_H - 3 - ((m - mMin) / Math.max(1, mMax - mMin)) * (MODE_H - 9);
 
   return (
     <>
@@ -82,13 +108,18 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
            onPointerDown={(e) => { drag.current = "main"; (e.target as Element).setPointerCapture?.(e.pointerId); seekFrom(mainRef.current, x, e.clientX); }}
            onPointerMove={(e) => { if (drag.current === "main") seekFrom(mainRef.current, x, e.clientX); }}
            onPointerUp={() => { drag.current = null; }}>
-        {/* brightness lane */}
-        <rect x={GUTTER} y={TOP} width={W - PADR - GUTTER} height={BR_H} fill="#0a0c11" />
-        {rlabel("Brightness", TOP + BR_H / 2)}
-        <path d={`${bpath}L${(W - PADR)} ${TOP + BR_H} L${GUTTER} ${TOP + BR_H} Z`} fill="#5ad28a22" />
+        {/* BPM curve */}
+        <rect x={GUTTER} y={bpmY} width={W - PADR - GUTTER} height={BPM_H} fill="#0a0c11" />
+        {rlabel("BPM", bpmY + BPM_H / 2)}
+        <path d={bpmPath} fill="none" stroke="#00d8e6" strokeWidth={1.4} />
+
+        {/* brightness */}
+        <rect x={GUTTER} y={brY} width={W - PADR - GUTTER} height={BR_H} fill="#0a0c11" />
+        {rlabel("Brightness", brY + BR_H / 2)}
+        <path d={`${bpath}L${W - PADR} ${brY + BR_H} L${GUTTER} ${brY + BR_H} Z`} fill="#5ad28a22" />
         <path d={bpath} fill="none" stroke="#5ad28a" strokeWidth={1.4} />
 
-        {/* colour lane */}
+        {/* colour */}
         {rlabel("Colour", colY + COL_H / 2)}
         {st.map((t, i) => (t >= winStart - 1 && t <= winEnd) ? (
           <rect key={i} x={x(t)} y={colY} width={Math.max(1, (i + 1 < st.length ? x(st[i + 1]) : x(winEnd)) - x(t)) + 0.5}
@@ -99,12 +130,28 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
         {rlabel("Dir", dirY + DIR_H / 2, "#9aa3b5")}
         {(plan.dir_marks || []).filter((m) => m.t >= winStart && m.t <= winEnd).map((m, k) => (
           <g key={k}>
-            <line x1={x(m.t)} y1={dirY} x2={x(m.t)} y2={modesBottom} stroke="#ffffff18" strokeDasharray="3 3" />
+            <line x1={x(m.t)} y1={dirY} x2={x(m.t)} y2={modesBottom} stroke="#ffffff14" strokeDasharray="3 3" />
             <text x={x(m.t)} y={dirY + DIR_H / 2} fill={m.fwd ? "#5ad28a" : "#e0a050"} fontSize={11} textAnchor="middle" dominantBaseline="middle">{m.fwd ? "▶" : "◀"}</text>
           </g>
         ))}
 
-        {/* mode rows: family groups × colour sub-lanes */}
+        {/* mode line + dots (y = mode number) */}
+        <rect x={GUTTER} y={modeLineY} width={W - PADR - GUTTER} height={MODE_H} fill="#0a0c11" />
+        {rlabel("Mode", modeLineY + MODE_H / 2)}
+        {modeSegs.map((s, k) => {
+          const next = modeSegs[k + 1];
+          return next && next.t0 < winEnd && s.t1 > winStart ? (
+            <line key={"c" + k} x1={x(Math.min(s.t1, winEnd))} y1={yMode(s.mode!)} x2={x(Math.max(next.t0, winStart))} y2={yMode(next.mode!)} stroke="#ffffff22" strokeWidth={1} />
+          ) : null;
+        })}
+        {modeSegs.filter((s) => s.t1 > winStart && s.t0 < winEnd).map((s, k) => (
+          <g key={k}>
+            <line x1={x(Math.max(s.t0, winStart))} y1={yMode(s.mode!)} x2={x(Math.min(s.t1, winEnd))} y2={yMode(s.mode!)} stroke={colorHex[s.color] || "#888"} strokeWidth={2} />
+            {s.t0 >= winStart - 0.2 && <circle cx={x(s.t0)} cy={yMode(s.mode!)} r={3} fill={colorHex[s.color] || "#888"} stroke="#0a0c11" />}
+          </g>
+        ))}
+
+        {/* mode piano-roll: family groups × colour sub-lanes */}
         {groups.map((fam, g) => (
           <g key={fam}>
             {freq.map((c, ci) => (
@@ -128,7 +175,7 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
                     tickFormat={(v) => fmtTime(v as number)}
                     tickLabelProps={() => ({ fill: "#5b6273", fontSize: 9, textAnchor: "middle" })} />
 
-        {/* playhead (centred) */}
+        {/* playhead */}
         <line x1={x(pos)} y1={TOP} x2={x(pos)} y2={modesBottom} stroke="#fff" strokeWidth={1.5} />
         <polygon points={`${x(pos) - 4},${TOP} ${x(pos) + 4},${TOP} ${x(pos)},${TOP + 5}`} fill="#fff" />
       </svg>
@@ -144,7 +191,6 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
                 height={OV_STRIP} fill={colorHex[plan.scolor[i]] || "#333"} />
         ))}
         <path d={ovpath} fill="none" stroke="#5ad28a" strokeWidth={1} opacity={0.8} />
-        {/* current window */}
         <rect x={xAll(winStart)} y={0} width={Math.max(2, xAll(winEnd) - xAll(winStart))} height={OV_H}
               fill="#5b8cff22" stroke="#5b8cff" strokeWidth={1} />
         <line x1={xAll(pos)} y1={0} x2={xAll(pos)} y2={OV_H} stroke="#fff" strokeWidth={1} />

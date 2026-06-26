@@ -21,7 +21,7 @@ HOP = 1024                 # ~21.5 fps at 22050 Hz — plenty for smooth light c
 DB_FLOOR = -45.0           # dB below the track's 95th-pct level = brightness 0
 NBARS = 40                 # spectrum bars; same log layout as the mic engine so colours align
 BAR_EDGES = np.logspace(np.log10(30), np.log10(16000), NBARS + 1)
-VERSION = 4                # bump when the timeline schema/algorithm changes (forces re-analysis)
+VERSION = 5                # bump when the timeline schema/algorithm changes (forces re-analysis)
 
 
 def _ema(x, a):
@@ -159,6 +159,22 @@ def analyze(path: str) -> dict:
                                            hop_length=HOP, units="time")
     bpm = float(np.atleast_1d(tempo)[0])
 
+    # --- time-varying (local) tempo, octave-folded toward the global tempo ---
+    dtempo = np.atleast_1d(np.asarray(
+        librosa.feature.tempo(onset_envelope=oenv, sr=sr, hop_length=HOP, aggregate=None),
+        dtype=float)).ravel()
+    if dtempo.size != T:
+        dtempo = np.interp(np.linspace(0, 1, T), np.linspace(0, 1, dtempo.size), dtempo)
+    g = bpm if bpm > 0 else float(np.median(dtempo) or 120)
+    for k in range(dtempo.size):
+        v = dtempo[k] if dtempo[k] > 0 else g
+        while v < g * 0.7:
+            v *= 2
+        while v > g * 1.4:
+            v /= 2
+        dtempo[k] = v
+    bpm_curve = _smooth(dtempo, 15)
+
     return {
         "version": VERSION,
         "sr": sr,
@@ -172,6 +188,7 @@ def analyze(path: str) -> dict:
         "centroid": [round(float(v), 3) for v in centroid],
         "dir": [int(d) for d in direction],
         "mood": [int(m) for m in mood],
+        "bpm_curve": [round(float(v), 1) for v in bpm_curve],
         "spec": [[round(float(v), 2) for v in specbars[:, t]] for t in range(T)],
     }
 
@@ -188,3 +205,4 @@ def warmup():
     librosa.decompose.hpss(S)
     oenv = librosa.onset.onset_strength(y=y, sr=SR, hop_length=HOP)
     librosa.beat.beat_track(onset_envelope=oenv, sr=SR, hop_length=HOP, units="time")
+    librosa.feature.tempo(onset_envelope=oenv, sr=SR, hop_length=HOP, aggregate=None)
