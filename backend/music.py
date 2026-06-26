@@ -46,6 +46,7 @@ class MusicEngine:
             "bright_floor": 12,
             "smooth": 0.4,
             "auto_family": False,     # track player: pick family by music character (mood)
+            "peak_strobe": True,      # track player: coloured solid-colour strobe on peaks
         }
 
         # --- beat-detection FFT: short window = good TIME resolution ---
@@ -305,6 +306,7 @@ class MusicEngine:
                 "mode": self.cur_mode,
                 "family": self.cur_family,
                 "color": self.color_code,
+                "music_color": self.color_code,
                 "direction": "fwd" if self.dir_committed else "bwd",
                 "C": round(self.cur_C, 2),
                 "active_families": list(self.active_families),

@@ -44,6 +44,7 @@ export interface MusicState {
   mode: number | null;
   family: string | null;
   color: string;
+  music_color: string;
   direction: "fwd" | "bwd";
   C: number;
   active_families: string[];
@@ -63,11 +64,13 @@ export interface PlayerState {
   speed: number;
   centroid: number;
   color: string;
+  music_color: string;
   family: string | null;
   mode: number | null;
   direction: "fwd" | "bwd";
   mood: string | null;
   spectrum: number[];
+  loading: boolean;
 }
 
 export interface SearchResult {
@@ -106,6 +109,7 @@ export interface Telemetry {
   level: number; // 0..1 — loudness (mic) or brightness/100 (player)
   centroid: number;
   color: string;
+  musicColor: string;
   family: string | null;
   mode: number | null;
   direction: "fwd" | "bwd";

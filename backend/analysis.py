@@ -21,7 +21,7 @@ HOP = 1024                 # ~21.5 fps at 22050 Hz — plenty for smooth light c
 DB_FLOOR = -45.0           # dB below the track's 95th-pct level = brightness 0
 NBARS = 40                 # spectrum bars; same log layout as the mic engine so colours align
 BAR_EDGES = np.logspace(np.log10(30), np.log10(16000), NBARS + 1)
-VERSION = 2                # bump when the timeline schema changes (forces re-analysis)
+VERSION = 3                # bump when the timeline schema/algorithm changes (forces re-analysis)
 
 
 def _ema(x, a):
@@ -40,20 +40,27 @@ def _smooth(x, w):
     return np.convolve(x, k, mode="same")
 
 
-def _color_track(bands_norm):
-    """Per-band novelty colour, frame by frame — mirrors the mic engine so the
-    player and live modes choose colours the same way. Holds the last colour through
-    steady passages (low novelty)."""
-    n_bands, T = bands_norm.shape
+# slight de-emphasis of the top/white band so cymbals & air don't dominate the
+# colour on bright, treble-heavy music (bass..treble)
+_BAND_WEIGHT = np.array([1.0, 1.0, 1.0, 0.97, 0.92, 0.78])
+
+
+def _color_track(bands):
+    """Pick the dominant colour band per frame from a blend of absolute energy
+    (so loud bass on a drop reads warm/red, matching the spectrum) and per-band
+    novelty (so transients still register). Holds through steady passages."""
+    n_bands, T = bands.shape
+    e = bands / (bands.max() + 1e-9)          # GLOBAL norm — keeps bands' relative sizes
     baseline = np.zeros(n_bands)
     ce = np.zeros(n_bands)
     out = np.zeros(T, dtype=np.int16)
     cur = 0
     for t in range(T):
-        e = bands_norm[:, t]
-        baseline = 0.98 * baseline + 0.02 * e
-        nov = np.maximum(0.0, e - baseline)
-        ce = 0.6 * ce + 0.4 * nov
+        et = e[:, t]
+        baseline = 0.98 * baseline + 0.02 * et
+        nov = np.maximum(0.0, et - baseline)
+        score = (et + 0.6 * nov) * _BAND_WEIGHT
+        ce = 0.6 * ce + 0.4 * score
         if ce.max() > 1e-3:
             cur = int(np.argmax(ce))
         out[t] = cur
@@ -112,8 +119,7 @@ def analyze(path: str) -> dict:
     cedges = np.logspace(np.log10(40), np.log10(min(12000, sr / 2)), 7)
     band_rows = [np.where((freqs >= cedges[i]) & (freqs < cedges[i + 1]))[0] for i in range(6)]
     bands = np.stack([S[rows].sum(axis=0) if len(rows) else np.zeros(T) for rows in band_rows])
-    bands_norm = bands / (bands.max(axis=1, keepdims=True) + 1e-9)
-    color_idx = _color_track(bands_norm)
+    color_idx = _color_track(bands)
 
     # --- spectral centroid (log) -> 0..1 ---
     cen = librosa.feature.spectral_centroid(S=S, sr=sr, freq=freqs)[0]

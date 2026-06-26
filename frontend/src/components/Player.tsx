@@ -8,6 +8,8 @@ interface Props {
   active: boolean;                 // false while the mic engine owns the strip
   smart: boolean;
   onSmart: (on: boolean) => void;
+  strobe: boolean;
+  onStrobe: (on: boolean) => void;
   onTrackState: (s: PlayerState) => void;
   onPlayingChange: (playing: boolean) => void;
 }
@@ -30,19 +32,22 @@ function loadYT(): Promise<any> {
 }
 
 const Player = forwardRef<PlayerHandle, Props>(function Player(
-  { active, smart, onSmart, onTrackState, onPlayingChange }, ref) {
+  { active, smart, onSmart, strobe, onStrobe, onTrackState, onPlayingChange }, ref) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [showResults, setShowResults] = useState(false);
   const [searching, setSearching] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [load, setLoad] = useState<LoadState>("idle");
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState("");
   const [videoId, setVideoId] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);   // YT player ready
+  const [ready, setReady] = useState(false);          // YT player ready
+  const [analysisReady, setAnalysisReady] = useState(false);
 
   const yt = useRef<any>(null);
   const holder = useRef<HTMLDivElement>(null);
+  const played = useRef(false);
 
   useImperativeHandle(ref, () => ({ pause: () => yt.current?.pauseVideo?.() }));
 
@@ -51,47 +56,55 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
     setSearching(true);
     try {
       const j = await get<{ results: SearchResult[] }>("/api/yt/search?q=" + encodeURIComponent(q));
-      setResults(j.results || []);
+      setResults(j.results || []); setShowResults(true);
     } finally {
       setSearching(false);
     }
   }
 
   async function choose(r: SearchResult) {
-    setActiveId(r.id); setErr(""); setLoad("starting"); setProgress(0);
-    setVideoId(r.id);                          // video starts immediately
-    // kick off download + offline analysis on the backend (lights engage once ready)
+    setActiveId(r.id); setShowResults(false); setErr(""); setLoad("starting"); setProgress(0);
+    setAnalysisReady(false); played.current = false;
+    yt.current?.pauseVideo?.();
+    setVideoId(r.id);                          // cue the video (paused) — plays once ready
+    // download + offline analysis on the backend; playback waits for it
     await get(`/api/yt/load?id=${r.id}&title=${encodeURIComponent(r.title)}&dur=${r.duration}`);
     const poll = async () => {
       const s = await get<any>("/api/yt/status?id=" + r.id);
       setLoad(s.state); setProgress(s.progress || 0);
       if (s.state === "error") setErr(s.error || "failed");
-      else if (s.state !== "ready") setTimeout(poll, 600);
+      else if (s.state === "ready") setAnalysisReady(true);
+      else setTimeout(poll, 600);
     };
     poll();
   }
 
-  // (re)point the YT player at the chosen video
+  // (re)point the YT player at the chosen video — CUE only (paused), don't autoplay
   useEffect(() => {
     if (!videoId) return;
     let cancelled = false;
     loadYT().then((YT) => {
       if (cancelled) return;
-      if (yt.current?.loadVideoById) { yt.current.loadVideoById(videoId); return; }
+      if (yt.current?.cueVideoById) { yt.current.cueVideoById(videoId); return; }
       yt.current = new YT.Player(holder.current, {
         videoId,
-        playerVars: { autoplay: 1, controls: 1, rel: 0, modestbranding: 1, playsinline: 1 },
+        playerVars: { autoplay: 0, controls: 1, rel: 0, modestbranding: 1, playsinline: 1 },
         events: {
           onReady: () => setReady(true),
-          onStateChange: (e: any) => {
-            const playing = e.data === YT.PlayerState.PLAYING;
-            onPlayingChange(playing);
-          },
+          onStateChange: (e: any) => onPlayingChange(e.data === YT.PlayerState.PLAYING),
         },
       });
     });
     return () => { cancelled = true; };
   }, [videoId, onPlayingChange]);
+
+  // start playback only once BOTH the player and the offline analysis are ready
+  useEffect(() => {
+    if (ready && analysisReady && active && !played.current && yt.current?.playVideo) {
+      played.current = true;
+      yt.current.playVideo();
+    }
+  }, [ready, analysisReady, active]);
 
   // tick loop: report the video clock so the lights stay in sync
   useEffect(() => {
@@ -110,18 +123,24 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
   return (
     <div className="player">
       <h2>🎬 Music Player
-        <button className={"mini" + (smart ? " on" : "")} style={{ float: "right" }}
-                title="Pick the effect family automatically from the music's character (calm/groove/drive/peak)"
-                onClick={() => onSmart(!smart)}>🧠 Smart mode: {smart ? "ON" : "OFF"}</button>
+        <span style={{ float: "right", display: "flex", gap: 6 }}>
+          <button className={"mini" + (smart ? " on" : "")}
+                  title="Pick the effect family automatically from the music's character (calm/groove/drive/peak)"
+                  onClick={() => onSmart(!smart)}>🧠 Smart: {smart ? "ON" : "OFF"}</button>
+          <button className={"mini" + (strobe ? " on" : "")}
+                  title="On peaks, flash a coloured strobe in the music's colour (Smart mode only)"
+                  onClick={() => onStrobe(!strobe)}>💥 Strobe: {strobe ? "ON" : "OFF"}</button>
+        </span>
       </h2>
       <div className="searchbar">
         <input placeholder="search a song on YouTube…" value={q}
                onChange={(e) => setQ(e.target.value)}
+               onFocus={() => results.length && setShowResults(true)}
                onKeyDown={(e) => e.key === "Enter" && search()} />
         <button onClick={search} disabled={searching}>{searching ? "…" : "Search"}</button>
       </div>
 
-      {results.length > 0 && (
+      {showResults && results.length > 0 && (
         <div className="results">
           {results.map((r) => (
             <div key={r.id} className={"result" + (r.id === activeId ? " active" : "")} onClick={() => choose(r)}>

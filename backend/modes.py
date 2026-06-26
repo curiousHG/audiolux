@@ -100,42 +100,70 @@ def build_family_catalog(grouped):
     return cat
 
 
-# Music character ("mood") -> families that suit it, most-preferred first. The
-# player auto-picks from these when "smart mode" is on, based on the track's
-# energy + percussiveness + timbre at each moment.
+# Music character ("mood") -> families that suit it, most-preferred first. Only
+# COLOUR-CAPABLE families are listed (Run/Trailing/Curtain/Swab have the full
+# 7-colour set) so the music's colour is always honoured. White-only families
+# like Strobe are NOT auto-picked — they'd ignore the colour and play white.
 MOOD_NAMES = ["calm", "groove", "drive", "peak"]
 MOOD_FAMILIES = {
-    0: ["Dreaming", "Trailing", "Curtain", "Flow"],        # calm / ambient / sustained
-    1: ["Flow", "Streaming", "Trailing", "Run"],           # groove / melodic mid-energy
-    2: ["Run", "Horse Race", "Hop", "Streaming"],          # drive / percussive high-energy
-    3: ["Strobe", "Run", "Hop", "Horse Race"],             # peak / drop / very high energy
+    0: ["Trailing", "Curtain", "Swab", "Run"],       # calm / ambient / sustained
+    1: ["Swab", "Trailing", "Run", "Curtain"],        # groove / melodic mid-energy
+    2: ["Run", "Swab", "Curtain", "Trailing"],        # drive / percussive high-energy
+    3: ["Run", "Curtain", "Swab", "Trailing"],        # peak / drop / very high energy
 }
 
 
-def mood_family(catalog, mood):
-    """Best available family for a mood index — the first preferred family that
-    exists in the catalog."""
-    for f in MOOD_FAMILIES.get(mood, []):
+def mood_family(catalog, mood, color_code=None):
+    """Best available family for a mood — the first preferred family that exists
+    AND can render the requested colour (so the light matches the music)."""
+    prefs = MOOD_FAMILIES.get(mood, [])
+    if color_code:
+        for f in prefs:
+            if f in catalog and color_code in catalog[f]:
+                return f
+    for f in prefs:
         if f in catalog:
             return f
     return next((f for f in catalog if f != "Auto"), None)
 
 
-def pick_mode(catalog, fam, color_code, forward=True, use_direction=True):
-    """Mode number for a colour variant in `fam`, honouring direction.
-    Falls back to the family's '7 Colors'/first variant when the exact colour or a
-    fwd/bwd half is missing. Shared by the mic engine and the track player."""
+def label_color(label):
+    """Map a catalog variant label to a display colour code, or None when the
+    variant has no single colour (e.g. a family-name label)."""
+    if label in COLOR_HEX:                       # 'RD'..'WH', '7 Colors'
+        return label
+    if label and label.strip().lower() == "white":
+        return "WH"
+    return None
+
+
+def resolve_mode(catalog, fam, color_code, forward=True, use_direction=True):
+    """Return (mode_number, variant_label) for a colour in `fam`, honouring
+    direction. `variant_label` is the colour ACTUALLY used (may differ from the
+    request when the family lacks it) — so callers can report the true colour."""
     colors = catalog.get(fam, {})
-    entry = (colors.get(color_code) or colors.get("7 Colors")
-             or (next(iter(colors.values())) if colors else None))
+    if color_code in colors:
+        label = color_code
+    elif "7 Colors" in colors:
+        label = "7 Colors"
+    else:
+        label = next(iter(colors), None)
+    entry = colors.get(label) if label is not None else None
     if not entry:
-        return None
+        return None, None
     fwd = forward or not use_direction
     if "fwd" in entry or "bwd" in entry:
-        return (entry.get("fwd") if fwd else entry.get("bwd")) or entry.get("fwd") or entry.get("bwd")
-    if "open" in entry or "close" in entry:
-        return (entry.get("open") if fwd else entry.get("close")) or entry.get("open") or entry.get("close")
-    return entry.get("single")
+        num = (entry.get("fwd") if fwd else entry.get("bwd")) or entry.get("fwd") or entry.get("bwd")
+    elif "open" in entry or "close" in entry:
+        num = (entry.get("open") if fwd else entry.get("close")) or entry.get("open") or entry.get("close")
+    else:
+        num = entry.get("single")
+    return num, label
+
+
+def pick_mode(catalog, fam, color_code, forward=True, use_direction=True):
+    """Mode number for a colour variant in `fam` (see resolve_mode)."""
+    return resolve_mode(catalog, fam, color_code, forward, use_direction)[0]
 
 
 def selectable_families(catalog):

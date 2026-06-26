@@ -15,7 +15,8 @@ h1 { font-size: 18px; margin: 0 0 4px; letter-spacing: .3px; }
 .pill.bad { background: #3a1820; color: #e0667a; }
 .sub { color: #7b8395; font-size: 12px; margin-bottom: 16px; }
 
-.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 26px; align-items: start; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 26px; align-items: start;
+  margin-top: 22px; padding-top: 14px; border-top: 1px solid #232838; }
 .col { min-width: 0; }
 .col h2, .board h2, .telemetry h2, .player h2 {
   font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #5b8cff;
