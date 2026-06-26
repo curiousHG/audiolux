@@ -45,6 +45,14 @@ class LedController:
         return {"total": self._count, "dropped": self._dropped, "rate": rate,
                 "hist": hist, "bucket": bucket, "max_rate": self.max_rate}
 
+    async def _reset(self):
+        if self._client:
+            try:
+                await self._client.disconnect()
+            except Exception:
+                pass
+        self._client = None
+
     async def _ensure(self):
         if self.connected:
             return
@@ -57,6 +65,18 @@ class LedController:
         await self._client.connect()
         log.info("connected to %s", P.TARGET_NAME)
 
+    async def _write(self, payload: bytes, response: bool = False):
+        """Write, transparently reconnecting on a stale connection (e.g. a
+        hot-reload leaves is_connected=True but service discovery undone)."""
+        try:
+            await self._ensure()
+            await self._client.write_gatt_char(P.CHAR_UUID, payload, response=response)
+        except Exception as e:
+            log.warning("write failed (%s) — resetting + reconnecting", e)
+            await self._reset()
+            await self._ensure()
+            await self._client.write_gatt_char(P.CHAR_UUID, payload, response=response)
+
     async def send(self, payload: bytes, critical: bool = True):
         now = time.monotonic()
         # rate-limit non-critical traffic (brightness/colour/speed); drop the excess
@@ -64,8 +84,7 @@ class LedController:
             self._dropped += 1
             return
         async with self._lock:
-            await self._ensure()
-            await self._client.write_gatt_char(P.CHAR_UUID, payload, response=False)
+            await self._write(payload)
             self._count += 1
             self._last_send_t = time.monotonic()
             self._stamps.append(self._last_send_t)
