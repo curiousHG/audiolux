@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
-import { cx } from "../ui";
+import { cx } from "@/ui";
 
 interface Props {
   open: boolean;

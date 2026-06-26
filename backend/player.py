@@ -11,8 +11,11 @@ import asyncio
 import bisect
 import math
 
-from . import modes as M
-from . import protocol as P
+from backend import modes as M
+from backend import protocol as P
+from backend.logging_config import get_logger
+
+log = get_logger("player")
 
 
 def _rgb(color_code):
@@ -67,6 +70,9 @@ class PlayerEngine:
         self.track = track
         self.tl = timeline
         self._reset_runtime()
+        log.info("loaded '%s' — %ss, %s BPM, %s beats",
+                 (track or {}).get("title", "?"), timeline.get("duration"),
+                 timeline.get("bpm"), len(timeline.get("beats", [])))
 
     def _frame_at(self, t):
         n = len(self.tl["bright"])

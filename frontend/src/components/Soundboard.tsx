@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { h2 } from "../ui";
+import { h2 } from "@/ui";
 
 const padCls = "h-[62px] rounded-xl border border-black/30 cursor-pointer flex flex-col items-center justify-center text-xs font-semibold text-white select-none transition-[transform,filter] active:scale-[.93] active:brightness-150 [text-shadow:0_1px_3px_#0008]";
 

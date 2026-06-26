@@ -1,8 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import type { PlayerState, SearchResult } from "../api";
-import { fmtTime, get } from "../api";
+import type { PlayerState, SearchResult } from "@/api";
+import { fmtTime, get } from "@/api";
 import { Search, Sparkles, Zap } from "lucide-react";
-import { h2, btn, btnMini, cx } from "../ui";
+import { h2, btn, btnMini, cx } from "@/ui";
 
 export interface PlayerHandle { pause: () => void }
 

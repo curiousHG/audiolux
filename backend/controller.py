@@ -7,7 +7,10 @@ import time
 
 from bleak import BleakClient, BleakScanner
 
-from . import protocol as P
+from backend import protocol as P
+from backend.logging_config import get_logger
+
+log = get_logger("ble")
 
 
 class LedController:
@@ -45,11 +48,14 @@ class LedController:
     async def _ensure(self):
         if self.connected:
             return
+        log.info("scanning for %s…", P.TARGET_NAME)
         dev = await BleakScanner.find_device_by_name(P.TARGET_NAME, timeout=15.0)
         if not dev:
+            log.warning("%s not found — is the phone still holding it?", P.TARGET_NAME)
             raise RuntimeError(f"{P.TARGET_NAME} not found — is the phone still holding it?")
         self._client = BleakClient(dev)
         await self._client.connect()
+        log.info("connected to %s", P.TARGET_NAME)
 
     async def send(self, payload: bytes, critical: bool = True):
         now = time.monotonic()
@@ -74,8 +80,11 @@ class LedController:
             for _ in range(n):
                 await self._client.write_gatt_char(P.CHAR_UUID, payload, response=True)
             dt = time.monotonic() - t0
-        return {"n": n, "seconds": round(dt, 3), "rate": round(n / dt, 1),
-                "latency_ms": round(dt / n * 1000, 1)}
+        result = {"n": n, "seconds": round(dt, 3), "rate": round(n / dt, 1),
+                  "latency_ms": round(dt / n * 1000, 1)}
+        log.info("benchmark: %s cmds in %ss = %s/s (%sms/cmd)",
+                 n, result["seconds"], result["rate"], result["latency_ms"])
+        return result
 
     async def disconnect(self):
         if self._client:

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { get } from "../api";
-import type { FamilyInfo, ModeGroup } from "../api";
+import { get } from "@/api";
+import type { FamilyInfo, ModeGroup } from "@/api";
 
 // Loads the static mode catalog + family/colour metadata once.
 export function useCatalog() {

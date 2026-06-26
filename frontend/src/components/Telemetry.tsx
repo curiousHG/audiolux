@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import type { Telemetry as T } from "../api";
-import { h2, card2, ro, note } from "../ui";
+import type { Telemetry as T } from "@/api";
+import { h2, card2, ro, note } from "@/ui";
 
 const roSpan = "block text-[10px] text-mute uppercase tracking-[.5px]";
 const tlabel = "text-xs text-[#c7ccd8] font-medium mb-1.5";

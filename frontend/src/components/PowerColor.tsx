@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { h2 } from "../ui";
+import { h2 } from "@/ui";
 
 const SWATCHES = ["#ff0000", "#ff7a00", "#ffd400", "#33ff00", "#00ffd0", "#0066ff", "#a000ff", "#ffffff"];
 

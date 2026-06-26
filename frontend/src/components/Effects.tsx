@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, ChevronsLeftRight, ChevronsRightLeft } from "lucide-react";
-import type { ModeGroup, EffectMode } from "../api";
-import { h2, row, btn, label, val, cx } from "../ui";
+import type { ModeGroup, EffectMode } from "@/api";
+import { h2, row, btn, label, val, cx } from "@/ui";
 
 function modeNum(e: EffectMode, forward: boolean): number {
   if ("single" in e) return e.single!;

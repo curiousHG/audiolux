@@ -1,17 +1,17 @@
 import { useState } from "react";
-import { card } from "./ui";
-import { useStrip } from "./hooks/useStrip";
-import { useCatalog } from "./hooks/useCatalog";
-import { useMusic } from "./hooks/useMusic";
-import Header from "./components/Header";
-import Drawer from "./components/Drawer";
-import Player from "./components/Player";
-import Telemetry from "./components/Telemetry";
-import CommandRate from "./components/CommandRate";
-import PowerColor from "./components/PowerColor";
-import Effects from "./components/Effects";
-import MusicEngine from "./components/MusicEngine";
-import Soundboard from "./components/Soundboard";
+import { card } from "@/ui";
+import { useStrip } from "@/hooks/useStrip";
+import { useCatalog } from "@/hooks/useCatalog";
+import { useMusic } from "@/hooks/useMusic";
+import Header from "@/components/Header";
+import Drawer from "@/components/Drawer";
+import Player from "@/components/Player";
+import Telemetry from "@/components/Telemetry";
+import CommandRate from "@/components/CommandRate";
+import PowerColor from "@/components/PowerColor";
+import Effects from "@/components/Effects";
+import MusicEngine from "@/components/MusicEngine";
+import Soundboard from "@/components/Soundboard";
 
 export default function App() {
   const { act, status, connected, cmds } = useStrip();

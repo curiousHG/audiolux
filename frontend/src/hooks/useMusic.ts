@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { get } from "../api";
-import type { MusicState, PlayerState, Telemetry as TelemetryT } from "../api";
-import type { HistPoint } from "../components/Telemetry";
-import type { PlayerHandle } from "../components/Player";
+import { get } from "@/api";
+import type { MusicState, PlayerState, Telemetry as TelemetryT } from "@/api";
+import type { HistPoint } from "@/components/Telemetry";
+import type { PlayerHandle } from "@/components/Player";
 
 const HIST_MAX = 240;
 

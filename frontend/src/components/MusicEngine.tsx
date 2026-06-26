@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Mic } from "lucide-react";
-import type { FamilyInfo } from "../api";
-import { h2, row, btn, btnSmall, label, val, cx } from "../ui";
+import type { FamilyInfo } from "@/api";
+import { h2, row, btn, btnSmall, label, val, cx } from "@/ui";
 
 const famBtn = "shrink-0 px-[11px] py-[7px] text-xs rounded-[9px] bg-btn2 text-ink cursor-pointer transition-colors hover:bg-btn";
 

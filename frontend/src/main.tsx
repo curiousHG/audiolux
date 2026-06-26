@@ -1,5 +1,5 @@
 import { createRoot } from 'react-dom/client'
-import App from './App.tsx'
+import App from '@/App.tsx'
 import './styles.css'
 
 // No StrictMode: this app sets up real intervals / audio nodes in effects, and

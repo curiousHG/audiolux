@@ -17,8 +17,11 @@ import time
 
 import numpy as np
 
-from . import modes as M
-from . import protocol as P
+from backend import modes as M
+from backend import protocol as P
+from backend.logging_config import get_logger
+
+log = get_logger("mic")
 
 
 class MusicEngine:
@@ -114,6 +117,7 @@ class MusicEngine:
         self.stream = self._open_input(sd)
         self.running = True
         self._task = loop.create_task(self._director())
+        log.info("mic engine started (families=%s)", self.active_families)
 
     def _open_input(self, sd):
         """Open + start the input stream, retrying once through a full PortAudio
@@ -134,6 +138,7 @@ class MusicEngine:
             return _mk()
 
     async def stop(self):
+        was = self.running
         self.running = False
         if self._task:
             self._task.cancel(); self._task = None
@@ -143,6 +148,8 @@ class MusicEngine:
             except Exception:
                 pass
             self.stream = None
+        if was:
+            log.info("mic engine stopped")
 
     def configure(self, **kw):
         with self.lock:

@@ -6,10 +6,12 @@ import os
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from .. import analysis, ytsource
-from ..services import engine, jobs, player
+from backend import analysis, ytsource
+from backend.logging_config import get_logger
+from backend.services import engine, jobs, player
 
 router = APIRouter()
+log = get_logger("track")
 
 
 def _timeline_path(vid: str) -> str:
@@ -41,6 +43,7 @@ async def _prepare(vid: str, title: str, dur: int):
 
         job["state"] = "downloading"
         tlp = _timeline_path(vid)
+        log.info("[%s] downloading '%s'", vid, track["title"])
 
         def prog(f):
             job["progress"] = round(f, 3)
@@ -49,23 +52,31 @@ async def _prepare(vid: str, title: str, dur: int):
         job["state"], job["progress"] = "analyzing", 1.0
         tl = _cached_timeline(vid)
         if tl is None:
+            log.info("[%s] analysing audio…", vid)
             tl = await asyncio.to_thread(analysis.analyze, ytsource.audio_path(vid))
             with open(tlp, "w") as f:
                 json.dump(tl, f)
+        else:
+            log.info("[%s] using cached timeline", vid)
 
         track["duration"] = track.get("duration") or tl["duration"]
         player.load(track, tl)
         job["state"] = "ready"
+        log.info("[%s] ready", vid)
     except Exception as e:
         player.stop_loading()
         job["state"], job["error"] = "error", str(e)
+        log.error("[%s] failed: %s", vid, e)
 
 
 @router.get("/api/yt/search")
 async def yt_search(q: str):
     try:
-        return {"ok": True, "results": await asyncio.to_thread(ytsource.search, q)}
+        results = await asyncio.to_thread(ytsource.search, q)
+        log.info("search '%s' -> %s results", q, len(results))
+        return {"ok": True, "results": results}
     except Exception as e:
+        log.error("search '%s' failed: %s", q, e)
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 

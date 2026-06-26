@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, get } from "../api";
-import type { CmdStats } from "../api";
+import { api, get } from "@/api";
+import type { CmdStats } from "@/api";
 
 // Connection + command-rate polling + the `act` helper (fires an API call and
 // surfaces a ✓/✗ status message).

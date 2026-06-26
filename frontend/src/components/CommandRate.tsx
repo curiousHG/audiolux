@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { CmdStats } from "../api";
-import { get } from "../api";
-import { btnMini, val } from "../ui";
+import type { CmdStats } from "@/api";
+import { get } from "@/api";
+import { btnMini, val } from "@/ui";
 
 export default function CommandRate({ cmds }: { cmds: CmdStats | null }) {
   const cg = useRef<HTMLCanvasElement>(null);

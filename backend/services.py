@@ -1,9 +1,9 @@
 """Shared singletons used across the API routers: the BLE controller, the mic +
 track engines, the mode catalog, and the in-flight download/analysis job table."""
-from . import modes as M
-from .controller import LedController
-from .music import MusicEngine
-from .player import PlayerEngine
+from backend import modes as M
+from backend.controller import LedController
+from backend.music import MusicEngine
+from backend.player import PlayerEngine
 
 MODES = M.load_modes()
 GROUPED = M.classify(MODES)

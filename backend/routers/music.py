@@ -4,7 +4,7 @@ import asyncio
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from ..services import engine, player
+from backend.services import engine, player
 
 router = APIRouter(prefix="/api/music")
 

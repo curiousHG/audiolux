@@ -2,8 +2,8 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from .. import modes as M
-from ..services import controller, engine, player, GROUPED, FAMILIES
+from backend import modes as M
+from backend.services import controller, engine, player, GROUPED, FAMILIES
 
 router = APIRouter()
 

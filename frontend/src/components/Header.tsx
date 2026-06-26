@@ -1,5 +1,5 @@
 import { Menu, Power } from "lucide-react";
-import { cx } from "../ui";
+import { cx } from "@/ui";
 
 interface Props {
   connected: boolean;
