@@ -3,7 +3,9 @@ import { card } from "@/ui";
 import { useStrip } from "@/hooks/useStrip";
 import { useCatalog } from "@/hooks/useCatalog";
 import { useMusic } from "@/hooks/useMusic";
+import { useExplain } from "@/hooks/useExplain";
 import Header from "@/components/Header";
+import Tuning from "@/components/Tuning";
 import Drawer from "@/components/Drawer";
 import Player from "@/components/Player";
 import Telemetry from "@/components/Telemetry";
@@ -19,6 +21,7 @@ export default function App() {
   const { act, status, connected, cmds } = useStrip();
   const cat = useCatalog();
   const m = useMusic(act);
+  const ex = useExplain(m.refreshPlan);
   const [drawer, setDrawer] = useState(false);
   const [powerOn, setPowerOn] = useState(true);
 
@@ -30,13 +33,16 @@ export default function App() {
 
       <main className="px-3 py-3">
         <div className={card}>
-          {/* the music being played + its readouts/spectrum, side by side */}
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-start">
-            <Player ref={m.playerRef} active={!m.micOn} smart={m.smart} onSmart={m.onSmart}
-                    strobe={m.strobe} onStrobe={m.onStrobe}
-                    onTrackState={m.onTrackState} onPlayingChange={m.onPlaying} />
-            <Telemetry telem={m.telem} hist={m.hist.current} colorHex={cat.colorHex}
-                       barColors={cat.barColors} num2name={cat.num2name} hasTrack={!!m.plan} />
+          {/* left: video + its live telemetry (readouts + spectrum) · right: tuning */}
+          <div className="grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-4 items-start">
+            <div className="flex flex-col gap-4 min-w-0">
+              <Player ref={m.playerRef} active={!m.micOn} smart={m.smart} onSmart={m.onSmart}
+                      strobe={m.strobe} onStrobe={m.onStrobe}
+                      onTrackState={m.onTrackState} onPlayingChange={m.onPlaying} />
+              <Telemetry telem={m.telem} hist={m.hist.current} colorHex={cat.colorHex}
+                         barColors={cat.barColors} num2name={cat.num2name} hasTrack={!!m.plan} />
+            </div>
+            <Tuning ex={ex} />
           </div>
 
           {/* full-width song timeline — always visible */}
@@ -55,7 +61,7 @@ export default function App() {
                style={{ color: status.ok ? "#5aa9ff" : "#e0667a" }}>{status.msg}</div>
         </div>
 
-        <HowItWorks act={act} onPlanChange={m.refreshPlan} />
+        <HowItWorks ex={ex} />
       </main>
 
       <Drawer open={drawer} onClose={() => setDrawer(false)}>
