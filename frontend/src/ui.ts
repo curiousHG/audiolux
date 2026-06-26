@@ -1,5 +1,5 @@
 // Shared inline-Tailwind class strings (composed in JSX with template literals).
-export const card = "w-full bg-card border border-line rounded-[18px] px-[26px] pt-[22px] pb-[26px]";
+export const card = "w-full bg-card border border-line rounded-2xl p-3 sm:p-4";
 export const h2 = "text-[11px] font-semibold uppercase tracking-[1.2px] text-accent border-b border-line pb-[7px] mb-[10px]";
 export const sectionTop = "mt-[22px] pt-[14px] border-t border-line";
 export const row = "flex gap-2.5 my-3";

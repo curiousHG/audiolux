@@ -102,15 +102,25 @@ class PlayerEngine:
         return max(0, bisect.bisect_right(self._plan_t0, t) - 1)
 
     def signals(self, n=420):
-        """Downsampled full-song brightness + colour arrays for the timeline view."""
+        """Downsampled full-song brightness + colour arrays, plus the times at which
+        the effect direction flips, for the timeline view."""
         bright, colors, dt = self.tl["bright"], self.tl["color"], self.tl["dt"]
         m = len(bright)
         step = max(1, m // n)
         idx = range(0, m, step)
+        dirs = self.tl.get("dir") or []
+        marks, last = [], None
+        for i, d in enumerate(dirs):
+            if d != last:
+                if last is not None:                 # skip the initial state, only flips
+                    marks.append({"t": round(i * dt, 2), "fwd": bool(d)})
+                last = d
         return {
             "sig_t": [round(i * dt, 2) for i in idx],
             "level": [round(bright[i], 3) for i in idx],
             "scolor": [M.FREQ_COLORS[colors[i]] for i in idx],
+            "dir_marks": marks,
+            "freq_colors": M.FREQ_COLORS,
         }
 
     # ----- driven by the browser audio clock -----

@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
-import type { Plan, Telemetry as T } from "@/api";
+import type { Telemetry as T } from "@/api";
 import { h2, card2, ro, note } from "@/ui";
-import TrackTimeline from "@/components/TrackTimeline";
 
 const roSpan = "block text-[10px] text-mute uppercase tracking-[.5px]";
 const tlabel = "text-xs text-[#c7ccd8] font-medium mb-1.5";
@@ -15,8 +14,7 @@ interface Props {
   colorHex: Record<string, string>;
   barColors: string[];
   num2name: Record<number, string>;
-  plan?: Plan | null;
-  onSeek?: (t: number) => void;
+  hasTrack?: boolean;          // a song is loaded -> the full-width timeline is shown elsewhere
 }
 
 function fit(c: HTMLCanvasElement): [CanvasRenderingContext2D, number, number] {
@@ -46,7 +44,7 @@ function lineSeries(x: CanvasRenderingContext2D, hist: HistPoint[], key: keyof H
   x.stroke();
 }
 
-export default function Telemetry({ telem, hist, colorHex, barColors, num2name, plan, onSeek }: Props) {
+export default function Telemetry({ telem, hist, colorHex, barColors, num2name, hasTrack }: Props) {
   const spec = useRef<HTMLCanvasElement>(null);
   const lb = useRef<HTMLCanvasElement>(null);
   const col = useRef<HTMLCanvasElement>(null);
@@ -103,10 +101,8 @@ export default function Telemetry({ telem, hist, colorHex, barColors, num2name, 
         <canvas ref={spec} className={canvasCls} />
       </div>
 
-      {plan ? (
-        <TrackTimeline plan={plan} pos={telem?.pos || 0} colorHex={colorHex} onSeek={onSeek || (() => {})} />
-      ) : (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
+      {!hasTrack && (
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-4">
           <div className={card2}>
             <div className={tlabel}>Loudness → Brightness <span className={note}><b className="text-[#7fd0ff]">level(target)</b> · <b className="text-[#5ad28a]">brightness(sent)</b></span></div>
             <canvas ref={lb} className={canvasCls} />
