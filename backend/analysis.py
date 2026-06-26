@@ -15,13 +15,15 @@ frame rate, plus the beat timestamps. Cached to disk so re-loads skip re-analysi
 import numpy as np
 import librosa
 
+from backend import params
+
 SR = 22050
 NFFT = 2048
 HOP = 1024                 # ~21.5 fps at 22050 Hz — plenty for smooth light control
-DB_FLOOR = -45.0           # dB below the track's 95th-pct level = brightness 0
 NBARS = 40                 # spectrum bars; same log layout as the mic engine so colours align
 BAR_EDGES = np.logspace(np.log10(30), np.log10(16000), NBARS + 1)
 VERSION = 5                # bump when the timeline schema/algorithm changes (forces re-analysis)
+DIR_GATE = 0.05            # below this brightness, direction holds (fixed)
 
 
 def _ema(x, a):
@@ -40,24 +42,22 @@ def _smooth(x, w):
     return np.convolve(x, k, mode="same")
 
 
-# slight de-emphasis of the top/white band so cymbals & air don't dominate the
-# colour on bright, treble-heavy music (bass..treble)
-_BAND_WEIGHT = np.array([1.0, 1.0, 1.0, 0.97, 0.92, 0.78])
-
-
 def _color_track(groups, bright):
     """Dominant colour per frame from the WHITENED 6-group energy (same signal the
     spectrum draws), so the chosen colour matches the tallest visible bars. White
     is slightly de-emphasised; the colour holds through near-silence."""
+    # band weights bass..treble; the top (white) band is down-weighted (tunable)
+    weight = np.array([1.0, 1.0, 1.0, 0.97, 0.92, params.get("white_deemph")])
+    silence = params.get("colour_silence")
     n_bands, T = groups.shape
     sm = np.zeros(n_bands)
     out = np.zeros(T, dtype=np.int16)
     cur = 0
     for t in range(T):
-        if bright[t] < 0.06:                  # near silence -> hold last colour
+        if bright[t] < silence:               # near silence -> hold last colour
             out[t] = cur
             continue
-        sm = 0.6 * sm + 0.4 * (groups[:, t] * _BAND_WEIGHT)
+        sm = 0.6 * sm + 0.4 * (groups[:, t] * weight)
         cur = int(np.argmax(sm))
         out[t] = cur
     return out
@@ -66,15 +66,17 @@ def _color_track(groups, bright):
 def _mood_track(bright, pfrac):
     """Classify each frame's musical character from energy + percussiveness:
     0 calm, 1 groove, 2 drive, 3 peak. Drives smart family selection."""
+    peak_e, peak_p = params.get("mood_peak_e"), params.get("mood_peak_p")
+    drive_e, groove_e = params.get("mood_drive_e"), params.get("mood_groove_e")
     T = len(bright)
     out = np.zeros(T, dtype=np.int8)
     for t in range(T):
         e, p = bright[t], pfrac[t]
-        if e > 0.75 and p > 0.45:
+        if e > peak_e and p > peak_p:
             out[t] = 3
-        elif e > 0.52:
+        elif e > drive_e:
             out[t] = 2
-        elif e > 0.28:
+        elif e > groove_e:
             out[t] = 1
         else:
             out[t] = 0
@@ -85,12 +87,13 @@ def _direction_track(bright, slow):
     """Commit forward on a build, backward on a release; hold otherwise."""
     T = len(bright)
     out = np.ones(T, dtype=np.int8)
+    build, release = params.get("dir_build"), params.get("dir_release")
     d = 1
     for t in range(T):
-        if bright[t] > 0.05:
-            if bright[t] > slow[t] * 1.05:
+        if bright[t] > DIR_GATE:
+            if bright[t] > slow[t] * build:
                 d = 1
-            elif bright[t] < slow[t] * 0.95:
+            elif bright[t] < slow[t] * release:
                 d = 0
         out[t] = d
     return out
@@ -105,10 +108,11 @@ def analyze(path: str) -> dict:
     T = S.shape[1]
 
     # --- brightness: perceptual dB from RMS, normalised to the song's own loud level ---
+    db_floor = params.get("db_floor")
     rms = librosa.feature.rms(S=S, frame_length=NFFT, hop_length=HOP)[0]
     ref = float(np.percentile(rms, 95)) + 1e-9
     db = 20.0 * np.log10(rms / ref + 1e-9)
-    bright = np.clip((db - DB_FLOOR) / (0.0 - DB_FLOOR), 0.0, 1.0)
+    bright = np.clip((db - db_floor) / (0.0 - db_floor), 0.0, 1.0)
     bright = _smooth(bright, 5)
 
     # --- spectral centroid (log) -> 0..1 ---
@@ -130,7 +134,7 @@ def analyze(path: str) -> dict:
     # SAME signal, so they always agree.
     band_mean = raw.mean(axis=1, keepdims=True) + 1e-6
     white = raw / band_mean                                    # ~1.0 on average per band
-    specbars = np.clip(white * 0.5, 0, 1) ** 0.85             # display 0..1 (avg ~0.5)
+    specbars = np.clip(white * 0.5, 0, 1) ** params.get("spec_gamma")   # display 0..1 (avg ~0.5)
 
     # --- colour: aggregate the whitened bars into 6 freq groups -> dominant group ---
     centers = np.sqrt(BAR_EDGES[:-1] * BAR_EDGES[1:])

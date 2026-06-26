@@ -9,6 +9,7 @@ import Player from "@/components/Player";
 import Telemetry from "@/components/Telemetry";
 import TrackTimeline from "@/components/TrackTimeline";
 import CommandRate from "@/components/CommandRate";
+import HowItWorks from "@/components/HowItWorks";
 import PowerColor from "@/components/PowerColor";
 import Effects from "@/components/Effects";
 import MusicEngine from "@/components/MusicEngine";
@@ -53,6 +54,8 @@ export default function App() {
           <div className="mt-3 pt-2.5 text-xs min-h-4 border-t border-line"
                style={{ color: status.ok ? "#5aa9ff" : "#e0667a" }}>{status.msg}</div>
         </div>
+
+        <HowItWorks act={act} onPlanChange={m.refreshPlan} />
       </main>
 
       <Drawer open={drawer} onClose={() => setDrawer(false)}>

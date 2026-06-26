@@ -12,11 +12,18 @@ import bisect
 import math
 
 from backend import modes as M
+from backend import params
 from backend import planner
 from backend import protocol as P
 from backend.logging_config import get_logger
 
 log = get_logger("player")
+
+
+# tempo -> animation speed: sp = SPEED_LO + (bpm - lo)/span * SPEED_SPAN, where
+# `lo`/`span` are tunable (params.speed_bpm_lo / speed_span)
+SPEED_LO, SPEED_SPAN = 25, 75
+SPEED_MIN, SPEED_MAX = 5, 100
 
 
 def _rgb(color_code):
@@ -170,7 +177,8 @@ class PlayerEngine:
 
         # animation speed tracks the DETECTED (local) tempo, so it follows the song
         if cfg["react_speed"] and self.bpm_local > 0:
-            sp = int(_clamp(round(25 + (self.bpm_local - 70) / 90 * 75), 5, 100))
+            sp = int(_clamp(round(SPEED_LO + (self.bpm_local - params.get("speed_bpm_lo"))
+                                  / params.get("speed_span") * SPEED_SPAN), SPEED_MIN, SPEED_MAX))
             self.speed_val = sp
             if abs(sp - self._last_speed) >= 5:
                 self._last_speed = sp

@@ -25,7 +25,7 @@ function playerTelem(s: PlayerState): TelemetryT {
 // toggles, and the rolling telemetry the dashboard renders.
 export function useMusic(act: (u: string) => void) {
   const [micOn, setMicOn] = useState(false);
-  const [smart, setSmart] = useState(false);
+  const [smart, setSmart] = useState(true);     // Smart on by default
   const [strobe, setStrobe] = useState(true);
   const [telem, setTelem] = useState<TelemetryT | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -90,5 +90,7 @@ export function useMusic(act: (u: string) => void) {
     return () => clearInterval(id);
   }, [loaded, planNonce]);
 
-  return { micOn, setMicOn, smart, onSmart, strobe, onStrobe, telem, plan, seek, hist, playerRef, onPlaying, onTrackState };
+  const refreshPlan = useCallback(() => setPlanNonce((n) => n + 1), []);
+
+  return { micOn, setMicOn, smart, onSmart, strobe, onStrobe, telem, plan, seek, refreshPlan, hist, playerRef, onPlaying, onTrackState };
 }

@@ -48,7 +48,7 @@ class MusicEngine:
             "beats_per_switch": 4,
             "bright_floor": 12,
             "smooth": 0.4,
-            "auto_family": False,     # track player: pick family by music character (mood)
+            "auto_family": True,      # track player: pick family by music character (mood) — Smart on
             "peak_strobe": True,      # track player: coloured solid-colour strobe on peaks
         }
 

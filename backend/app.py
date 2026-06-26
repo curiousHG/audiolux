@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend import analysis, ytsource
 from backend.logging_config import get_logger, setup_logging
-from backend.routers import controls, music, tracks
+from backend.routers import controls, music, settings, tracks
 from backend.services import controller, engine
 
 setup_logging()
@@ -46,6 +46,7 @@ app = FastAPI(title="LEDDMX Control", lifespan=lifespan)
 app.include_router(controls.router)
 app.include_router(music.router)
 app.include_router(tracks.router)
+app.include_router(settings.router)
 
 # static media + frontend (mounted last so /api/* wins)
 app.mount("/media", StaticFiles(directory=ytsource.CACHE_DIR), name="media")
