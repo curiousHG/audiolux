@@ -1,7 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { PlayerState, SearchResult } from "../api";
 import { fmtTime, get } from "../api";
-import { sectionTop, h2, btn, btnMini, cx } from "../ui";
+import { Search, Sparkles, Zap } from "lucide-react";
+import { h2, btn, btnMini, cx } from "../ui";
 
 export interface PlayerHandle { pause: () => void }
 
@@ -122,16 +123,16 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
   }, [ready, active, onTrackState]);
 
   return (
-    <div className={sectionTop}>
-      <h2 className={cx(h2, "flex items-center justify-between")}>
-        <span>🎬 Music Player</span>
+    <div>
+      <h2 className={cx(h2, "flex items-center justify-between flex-wrap gap-2")}>
+        <span>Music Player</span>
         <span className="flex gap-1.5">
-          <button className={cx(btnMini, smart && "!bg-on")}
+          <button className={cx(btnMini, "flex items-center gap-1", smart && "!bg-on")}
                   title="Pick the effect family automatically from the music's character (calm/groove/drive/peak)"
-                  onClick={() => onSmart(!smart)}>🧠 Smart: {smart ? "ON" : "OFF"}</button>
-          <button className={cx(btnMini, strobe && "!bg-on")}
+                  onClick={() => onSmart(!smart)}><Sparkles size={12} /> Smart: {smart ? "ON" : "OFF"}</button>
+          <button className={cx(btnMini, "flex items-center gap-1", strobe && "!bg-on")}
                   title="On peaks, flash a coloured strobe in the music's colour (Smart mode only)"
-                  onClick={() => onStrobe(!strobe)}>💥 Strobe: {strobe ? "ON" : "OFF"}</button>
+                  onClick={() => onStrobe(!strobe)}><Zap size={12} /> Strobe: {strobe ? "ON" : "OFF"}</button>
         </span>
       </h2>
       <div className="flex gap-2">
@@ -139,7 +140,9 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
                onChange={(e) => setQ(e.target.value)}
                onFocus={() => results.length && setShowResults(true)}
                onKeyDown={(e) => e.key === "Enter" && search()} />
-        <button className={cx(btn, "!flex-none px-[18px]")} onClick={search} disabled={searching}>{searching ? "…" : "Search"}</button>
+        <button className={cx(btn, "!flex-none px-4 flex items-center gap-1.5")} onClick={search} disabled={searching}>
+          <Search size={15} /> {searching ? "…" : "Search"}
+        </button>
       </div>
 
       {showResults && results.length > 0 && (

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Telemetry as T } from "../api";
-import { sectionTop, h2, card2, ro, note } from "../ui";
+import { h2, card2, ro, note } from "../ui";
 
 const roSpan = "block text-[10px] text-mute uppercase tracking-[.5px]";
 const tlabel = "text-xs text-[#c7ccd8] font-medium mb-1.5";
@@ -83,7 +83,7 @@ export default function Telemetry({ telem, hist, colorHex, barColors, num2name }
   const beatOn = (t?.beat_flash || 0) > 0.2;
   const dot = "inline-block w-3 h-3 rounded-full align-[-1px] mr-[5px]";
   return (
-    <div className={sectionTop}>
+    <div>
       <h2 className={h2}>Live telemetry — what the music says vs what the light does</h2>
       <div className="flex flex-wrap gap-2 mb-3">
         <div className={ro}><span className={roSpan}>BPM</span><b className="text-[15px] tabular-nums">{t && t.bpm > 0 ? t.bpm : "—"}</b></div>

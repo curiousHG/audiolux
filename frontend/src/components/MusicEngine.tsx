@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Mic } from "lucide-react";
 import type { FamilyInfo } from "../api";
 import { h2, row, btn, btnSmall, label, val, cx } from "../ui";
 
@@ -43,8 +44,8 @@ export default function MusicEngine({ act, families, micOn, onMicChange }: Props
     <section className="min-w-0">
       <h2 className={h2}>Music Engine (mic)</h2>
       <div className={cx(row, "mt-0")}>
-        <button className={cx(btn, micOn && "!bg-on")} onClick={() => onMicChange(!micOn)}>
-          🎵 Music Engine (mic): {micOn ? "ON" : "OFF"}
+        <button className={cx(btn, "flex items-center justify-center gap-1.5", micOn && "!bg-on")} onClick={() => onMicChange(!micOn)}>
+          <Mic size={15} /> Mic engine: {micOn ? "ON" : "OFF"}
         </button>
       </div>
       {micOn && (

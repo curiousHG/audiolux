@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { sectionTop, h2 } from "../ui";
+import { h2 } from "../ui";
 
 const padCls = "h-[62px] rounded-xl border border-black/30 cursor-pointer flex flex-col items-center justify-center text-xs font-semibold text-white select-none transition-[transform,filter] active:scale-[.93] active:brightness-150 [text-shadow:0_1px_3px_#0008]";
 
@@ -74,9 +74,9 @@ export default function Soundboard({ act }: { act: (u: string) => void }) {
   });
 
   return (
-    <div className={sectionTop}>
-      <h2 className={h2}>Soundboard <span className="normal-case tracking-normal text-dim font-normal">— click pads or use your keyboard (sound + light hit)</span></h2>
-      <div className="grid grid-cols-12 max-[800px]:grid-cols-6 gap-2">
+    <div>
+      <h2 className={h2}>Soundboard <span className="normal-case tracking-normal text-dim font-normal">— click or use your keyboard</span></h2>
+      <div className="grid grid-cols-4 gap-2">
         {PADS.map((p) => (
           <div key={p.key} ref={(e) => { els.current[p.key] = e; }} className={padCls}
                style={{ background: darken(p.hex, 0.62) }} onClick={() => fire(p)}>

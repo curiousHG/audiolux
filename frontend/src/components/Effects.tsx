@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, ChevronsLeftRight, ChevronsRightLeft } from "lucide-react";
 import type { ModeGroup, EffectMode } from "../api";
 import { h2, row, btn, label, val, cx } from "../ui";
 
@@ -69,17 +70,17 @@ export default function Effects({ act, groups }: { act: (u: string) => void; gro
 
       <label className={label}>Direction <span className={val}>#{md}</span></label>
       <div className={cx(row, "mt-0")}>
-        <button className={cx(btn, "text-xl", fwd && "!bg-on")} disabled={single} title={oc ? "Open" : "Forward"} onClick={() => setDir(true)}>
-          {oc ? "⤢" : "⟶"}
+        <button className={cx(btn, "flex items-center justify-center", fwd && "!bg-on")} disabled={single} title={oc ? "Open" : "Forward"} onClick={() => setDir(true)}>
+          {oc ? <ChevronsLeftRight size={18} /> : <ArrowRight size={18} />}
         </button>
-        <button className={cx(btn, "text-xl", !fwd && "!bg-on")} disabled={single} title={oc ? "Close" : "Backward"} onClick={() => setDir(false)}>
-          {oc ? "⤡" : "⟵"}
+        <button className={cx(btn, "flex items-center justify-center", !fwd && "!bg-on")} disabled={single} title={oc ? "Close" : "Backward"} onClick={() => setDir(false)}>
+          {oc ? <ChevronsRightLeft size={18} /> : <ArrowLeft size={18} />}
         </button>
       </div>
       <div className="flex gap-2 items-center mt-3">
-        <button className={btn} onClick={() => go((parseInt(md) || 1) - 1)}>‹ Prev</button>
+        <button className={cx(btn, "flex items-center justify-center gap-0.5")} title="Previous mode" onClick={() => go((parseInt(md) || 1) - 1)}><ChevronLeft size={16} /> Prev</button>
         <input className="flex-1 text-center" type="number" min={1} max={255} value={md} onChange={(e) => setMd(e.target.value)} />
-        <button className={btn} onClick={() => go((parseInt(md) || 1) + 1)}>Next ›</button>
+        <button className={cx(btn, "flex items-center justify-center gap-0.5")} title="Next mode" onClick={() => go((parseInt(md) || 1) + 1)}>Next <ChevronRight size={16} /></button>
         <button className={cx(btn, "!flex-[0.7]")} onClick={() => go(parseInt(md) || 1)}>Go</button>
       </div>
     </section>
