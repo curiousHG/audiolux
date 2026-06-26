@@ -21,7 +21,7 @@ HOP = 1024                 # ~21.5 fps at 22050 Hz — plenty for smooth light c
 DB_FLOOR = -45.0           # dB below the track's 95th-pct level = brightness 0
 NBARS = 40                 # spectrum bars; same log layout as the mic engine so colours align
 BAR_EDGES = np.logspace(np.log10(30), np.log10(16000), NBARS + 1)
-VERSION = 3                # bump when the timeline schema/algorithm changes (forces re-analysis)
+VERSION = 4                # bump when the timeline schema/algorithm changes (forces re-analysis)
 
 
 def _ema(x, a):
@@ -45,24 +45,20 @@ def _smooth(x, w):
 _BAND_WEIGHT = np.array([1.0, 1.0, 1.0, 0.97, 0.92, 0.78])
 
 
-def _color_track(bands):
-    """Pick the dominant colour band per frame from a blend of absolute energy
-    (so loud bass on a drop reads warm/red, matching the spectrum) and per-band
-    novelty (so transients still register). Holds through steady passages."""
-    n_bands, T = bands.shape
-    e = bands / (bands.max() + 1e-9)          # GLOBAL norm — keeps bands' relative sizes
-    baseline = np.zeros(n_bands)
-    ce = np.zeros(n_bands)
+def _color_track(groups, bright):
+    """Dominant colour per frame from the WHITENED 6-group energy (same signal the
+    spectrum draws), so the chosen colour matches the tallest visible bars. White
+    is slightly de-emphasised; the colour holds through near-silence."""
+    n_bands, T = groups.shape
+    sm = np.zeros(n_bands)
     out = np.zeros(T, dtype=np.int16)
     cur = 0
     for t in range(T):
-        et = e[:, t]
-        baseline = 0.98 * baseline + 0.02 * et
-        nov = np.maximum(0.0, et - baseline)
-        score = (et + 0.6 * nov) * _BAND_WEIGHT
-        ce = 0.6 * ce + 0.4 * score
-        if ce.max() > 1e-3:
-            cur = int(np.argmax(ce))
+        if bright[t] < 0.06:                  # near silence -> hold last colour
+            out[t] = cur
+            continue
+        sm = 0.6 * sm + 0.4 * (groups[:, t] * _BAND_WEIGHT)
+        cur = int(np.argmax(sm))
         out[t] = cur
     return out
 
@@ -115,27 +111,35 @@ def analyze(path: str) -> dict:
     bright = np.clip((db - DB_FLOOR) / (0.0 - DB_FLOOR), 0.0, 1.0)
     bright = _smooth(bright, 5)
 
-    # --- colour: 6 log bands -> per-band novelty -> dominant band ---
-    cedges = np.logspace(np.log10(40), np.log10(min(12000, sr / 2)), 7)
-    band_rows = [np.where((freqs >= cedges[i]) & (freqs < cedges[i + 1]))[0] for i in range(6)]
-    bands = np.stack([S[rows].sum(axis=0) if len(rows) else np.zeros(T) for rows in band_rows])
-    color_idx = _color_track(bands)
-
     # --- spectral centroid (log) -> 0..1 ---
     cen = librosa.feature.spectral_centroid(S=S, sr=sr, freq=freqs)[0]
     lo, hi = np.log10(30), np.log10(16000)
     centroid = np.clip((np.log10(np.maximum(cen, 30)) - lo) / (hi - lo), 0.0, 1.0)
 
-    # --- spectrum bars (40, log) for the visualiser, normalised to the song ---
+    # --- spectrum bars (40, log) ---
     sidx = np.searchsorted(freqs, BAR_EDGES)
-    specbars = np.zeros((NBARS, T))
+    raw = np.zeros((NBARS, T))
     for i in range(NBARS):
         a, b = sidx[i], sidx[i + 1]
         if b > a:
-            specbars[i] = S[a:b].mean(axis=0)
-    pos = specbars[specbars > 0]
-    ref_s = (float(np.percentile(pos, 99)) + 1e-9) if pos.size else 1.0
-    specbars = np.clip(specbars / ref_s, 0, 1) ** 0.6          # gamma lift for visibility
+            raw[i] = S[a:b].mean(axis=0)
+
+    # per-band WHITENING: divide each band by its own song-long average, so the
+    # display shows relative activity instead of the raw 1/f tilt (otherwise bass
+    # always dominates). The bars you SEE and the colour we pick now come from the
+    # SAME signal, so they always agree.
+    band_mean = raw.mean(axis=1, keepdims=True) + 1e-6
+    white = raw / band_mean                                    # ~1.0 on average per band
+    specbars = np.clip(white * 0.5, 0, 1) ** 0.85             # display 0..1 (avg ~0.5)
+
+    # --- colour: aggregate the whitened bars into 6 freq groups -> dominant group ---
+    centers = np.sqrt(BAR_EDGES[:-1] * BAR_EDGES[1:])
+    cedges = np.logspace(np.log10(40), np.log10(16000), 7)
+    bargroup = np.clip(np.searchsorted(cedges, centers) - 1, 0, 5)
+    groups = np.zeros((6, T))
+    for i in range(NBARS):
+        groups[bargroup[i]] += white[i]
+    color_idx = _color_track(groups, bright)
 
     # --- percussiveness (HPSS) + mood ---
     H, Pp = librosa.decompose.hpss(S)

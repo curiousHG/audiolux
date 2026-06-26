@@ -47,6 +47,7 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState("");
   const [videoId, setVideoId] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
   const [ready, setReady] = useState(false);          // YT player ready
   const [analysisReady, setAnalysisReady] = useState(false);
 
@@ -70,13 +71,13 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
     }
   }
 
-  async function loadTrack(id: string, title: string, dur: number) {
-    setActiveId(id); setShowResults(false); setErr(""); setLoad("starting"); setProgress(0);
+  async function loadTrack(id: string, ttl: string, dur: number) {
+    setActiveId(id); setTitle(ttl); setShowResults(false); setErr(""); setLoad("starting"); setProgress(0);
     setAnalysisReady(false); played.current = false;
     yt.current?.pauseVideo?.();
     setVideoId(id);                            // cue the video (paused) — plays once ready
     // download + offline analysis on the backend; playback waits for it
-    await get(`/api/yt/load?id=${id}&title=${encodeURIComponent(title)}&dur=${dur}`);
+    await get(`/api/yt/load?id=${id}&title=${encodeURIComponent(ttl)}&dur=${dur}`);
     const poll = async () => {
       const s = await get<any>("/api/yt/status?id=" + id);
       setLoad(s.state); setProgress(s.progress || 0);
@@ -177,6 +178,7 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
 
       {videoId && (
         <div className="mt-3">
+          {title && <div className="text-sm font-medium mb-2 truncate" title={title}>♪ {title}</div>}
           <div className="video-frame w-full max-w-[640px] aspect-video mx-auto rounded-xl overflow-hidden bg-black border border-line"><div ref={holder} /></div>
           <div className="text-xs text-mute mt-2 text-center">
             {load === "error" ? `✗ ${err}` :
