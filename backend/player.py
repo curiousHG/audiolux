@@ -12,6 +12,7 @@ import bisect
 import math
 
 from backend import modes as M
+from backend import planner
 from backend import protocol as P
 from backend.logging_config import get_logger
 
@@ -56,11 +57,14 @@ class PlayerEngine:
         self.spectrum = []
         self.beat_flash = 0.0
         self._strobe_on = False
-        self._was_strobing = False
         self._last_bright = -1
         self._last_speed = -1
         self._last_t = -999.0
         self._prev_playing = False
+        self.plan = None
+        self._plan_key = None
+        self._plan_t0 = []
+        self._seg_idx = -1
 
     @property
     def loaded(self) -> bool:
@@ -79,11 +83,41 @@ class PlayerEngine:
         i = int(t / self.tl["dt"])
         return _clamp(i, 0, n - 1)
 
+    # ----- precomputed mode plan (followed by tick, drawn by the UI) -----
+    def ensure_plan(self):
+        if not self.loaded:
+            self.plan = None
+            return None
+        key = planner.plan_key(self.tl, self.engine.cfg, self.engine.active_families)
+        if key != self._plan_key:
+            self.plan = planner.build_plan(self.catalog, self.tl, self.engine.cfg, self.engine.active_families)
+            self._plan_t0 = [s["t0"] for s in self.plan["segments"]]
+            self._plan_key = key
+            self._seg_idx = -1                      # force re-apply on the next tick
+        return self.plan
+
+    def _seg_at(self, t):
+        if not self._plan_t0:
+            return -1
+        return max(0, bisect.bisect_right(self._plan_t0, t) - 1)
+
+    def signals(self, n=420):
+        """Downsampled full-song brightness + colour arrays for the timeline view."""
+        bright, colors, dt = self.tl["bright"], self.tl["color"], self.tl["dt"]
+        m = len(bright)
+        step = max(1, m // n)
+        idx = range(0, m, step)
+        return {
+            "sig_t": [round(i * dt, 2) for i in idx],
+            "level": [round(bright[i], 3) for i in idx],
+            "scolor": [M.FREQ_COLORS[colors[i]] for i in idx],
+        }
+
     # ----- driven by the browser audio clock -----
     async def tick(self, t: float, playing: bool):
         if not self.loaded:
             return
-        seek = abs(t - self._last_t) > 1.0          # a jump = the user scrubbed
+        self.ensure_plan()
         cfg = self.engine.cfg
         i = self._frame_at(t)
         bright01 = self.tl["bright"][i]
@@ -97,8 +131,6 @@ class PlayerEngine:
         bc = bisect.bisect_right(beats, t)
         self.beat_count = bc
         self.beat_flash = 1.0 if (bc > 0 and t - beats[bc - 1] < 0.12) else self.beat_flash * 0.6
-        if seek:
-            self._last_switch_beat = bc             # don't fire a burst after scrubbing
 
         # power on + take over from the loading animation the moment playback starts
         if playing and not self._prev_playing:
@@ -124,37 +156,23 @@ class PlayerEngine:
                 self._last_speed = sp
                 await self._safe(self.c.send(P.speed(sp), critical=False))
 
-        # PEAK: build our own COLOURED strobe by flashing solid colours in the live
-        # music colour — punchy like the white Strobe mode, but it keeps the colour.
-        if cfg.get("auto_family") and cfg.get("peak_strobe", True) and self.mood == 3:
+        # follow the precomputed plan: apply the segment covering the current time
+        if not (cfg["switch_modes"] and self.plan and self.plan["segments"]):
+            return
+        si = self._seg_at(t)
+        seg = self.plan["segments"][si]
+        if seg["kind"] == "strobe":
+            # coloured strobe — flash solid colours in the live music colour
             self._strobe_on = not self._strobe_on
-            self._was_strobing = True
             self.cur_family, self.cur_mode = "Colour Strobe", None
             self.color_code = self.music_color
             rgb = _rgb(self.music_color) if self._strobe_on else (0, 0, 0)
             await self._safe(self.c.send(P.color(*rgb), critical=False))
-            return
-        if self._was_strobing:                    # leaving peak -> re-establish an effect mode
-            self._was_strobing = False
-            self._last_switch_beat = -10 ** 9
-
-        if cfg["switch_modes"] and bc - self._last_switch_beat >= cfg["beats_per_switch"]:
-            if cfg.get("auto_family"):
-                fam = M.mood_family(self.catalog, self.mood, self.music_color)
-            else:
-                fams = [f for f in self.engine.active_families if f in self.catalog]
-                fam = None
-                if fams:
-                    self._fam_idx = (self._fam_idx + 1) % len(fams)
-                    fam = fams[self._fam_idx]
-            if fam:
-                self._last_switch_beat = bc
-                n, label = M.resolve_mode(self.catalog, fam, self.music_color,
-                                          self.dir_forward, cfg["use_direction"])
-                if n:
-                    self.cur_mode, self.cur_family = n, fam
-                    self.color_code = M.label_color(label) or self.music_color
-                    await self._safe(self.c.send(P.mode(n), critical=True))
+            self._seg_idx = si
+        elif si != self._seg_idx:                   # entered a new mode segment (incl. after a seek)
+            self._seg_idx = si
+            self.cur_mode, self.cur_family, self.color_code = seg["mode"], seg["family"], seg["color"]
+            await self._safe(self.c.send(P.mode(seg["mode"]), critical=True))
 
     async def stop(self):
         self.playing = False

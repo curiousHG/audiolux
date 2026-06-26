@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
-import type { Telemetry as T } from "@/api";
+import type { Plan, Telemetry as T } from "@/api";
 import { h2, card2, ro, note } from "@/ui";
+import TrackTimeline from "@/components/TrackTimeline";
 
 const roSpan = "block text-[10px] text-mute uppercase tracking-[.5px]";
 const tlabel = "text-xs text-[#c7ccd8] font-medium mb-1.5";
@@ -14,6 +15,8 @@ interface Props {
   colorHex: Record<string, string>;
   barColors: string[];
   num2name: Record<number, string>;
+  plan?: Plan | null;
+  onSeek?: (t: number) => void;
 }
 
 function fit(c: HTMLCanvasElement): [CanvasRenderingContext2D, number, number] {
@@ -43,7 +46,7 @@ function lineSeries(x: CanvasRenderingContext2D, hist: HistPoint[], key: keyof H
   x.stroke();
 }
 
-export default function Telemetry({ telem, hist, colorHex, barColors, num2name }: Props) {
+export default function Telemetry({ telem, hist, colorHex, barColors, num2name, plan, onSeek }: Props) {
   const spec = useRef<HTMLCanvasElement>(null);
   const lb = useRef<HTMLCanvasElement>(null);
   const col = useRef<HTMLCanvasElement>(null);
@@ -95,20 +98,25 @@ export default function Telemetry({ telem, hist, colorHex, barColors, num2name }
         <div className={ro}><span className={roSpan}>Effect</span><b className="text-xs">{t?.mode ? (num2name[t.mode] || "#" + t.mode) : "—"}</b></div>
         <div className={ro}><span className={roSpan}>Dir</span><b className="text-[15px]">{t?.direction === "bwd" ? "◀ back" : "▶ fwd"}</b></div>
       </div>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
-        <div className={card2}>
-          <div className={tlabel}>Spectrum <span className={note}>(bars coloured by frequency→colour band)</span></div>
-          <canvas ref={spec} className={canvasCls} />
-        </div>
-        <div className={card2}>
-          <div className={tlabel}>Loudness → Brightness <span className={note}><b className="text-[#7fd0ff]">level(target)</b> · <b className="text-[#5ad28a]">brightness(sent)</b></span></div>
-          <canvas ref={lb} className={canvasCls} />
-        </div>
-        <div className={card2}>
-          <div className={tlabel}>Frequency → Colour <span className={note}>(chosen colour over time · line = spectral centroid)</span></div>
-          <canvas ref={col} className={canvasCls} />
-        </div>
+      <div className={card2 + " mb-4"}>
+        <div className={tlabel}>Spectrum <span className={note}>(live · bars coloured by frequency→colour band)</span></div>
+        <canvas ref={spec} className={canvasCls} />
       </div>
+
+      {plan ? (
+        <TrackTimeline plan={plan} pos={telem?.pos || 0} colorHex={colorHex} onSeek={onSeek || (() => {})} />
+      ) : (
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
+          <div className={card2}>
+            <div className={tlabel}>Loudness → Brightness <span className={note}><b className="text-[#7fd0ff]">level(target)</b> · <b className="text-[#5ad28a]">brightness(sent)</b></span></div>
+            <canvas ref={lb} className={canvasCls} />
+          </div>
+          <div className={card2}>
+            <div className={tlabel}>Frequency → Colour <span className={note}>(chosen colour over time · line = spectral centroid)</span></div>
+            <canvas ref={col} className={canvasCls} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

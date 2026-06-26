@@ -34,7 +34,8 @@ export default function App() {
                     strobe={m.strobe} onStrobe={m.onStrobe}
                     onTrackState={m.onTrackState} onPlayingChange={m.onPlaying} />
             <Telemetry telem={m.telem} hist={m.hist.current} colorHex={cat.colorHex}
-                       barColors={cat.barColors} num2name={cat.num2name} />
+                       barColors={cat.barColors} num2name={cat.num2name}
+                       plan={m.plan} onSeek={m.seek} />
           </div>
           <CommandRate cmds={cmds} />
           <div className="mt-[18px] pt-2.5 text-xs min-h-4 border-t border-line"

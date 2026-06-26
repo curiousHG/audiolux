@@ -116,6 +116,28 @@ export interface Telemetry {
   C?: number;
   mood?: string | null;
   spectrum?: number[];
+  pos?: number;
+}
+
+export interface PlanSegment {
+  t0: number;
+  t1: number;
+  kind: "mode" | "strobe";
+  family: string;
+  mode: number | null;
+  color: string;
+  mood: number;
+}
+
+export interface Plan {
+  loaded: boolean;
+  duration: number;
+  bpm: number;
+  segments: PlanSegment[];
+  families: string[];
+  sig_t: number[];
+  level: number[];
+  scolor: string[];
 }
 
 export function fmtTime(s: number): string {

@@ -128,3 +128,13 @@ async def player_stop():
 @router.get("/api/player/state")
 async def player_state():
     return {"ok": True, **player.state()}
+
+
+@router.get("/api/player/plan")
+async def player_plan():
+    """Full-song mode plan + downsampled brightness/colour signals for the
+    timeline view. Recomputed automatically when the config changes."""
+    p = player.ensure_plan()
+    if not p:
+        return {"ok": True, "loaded": False}
+    return {"ok": True, "loaded": True, **p, **player.signals()}

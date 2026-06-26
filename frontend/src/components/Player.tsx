@@ -4,7 +4,7 @@ import { fmtTime, get } from "@/api";
 import { Search, Sparkles, Zap } from "lucide-react";
 import { h2, btn, btnMini, cx } from "@/ui";
 
-export interface PlayerHandle { pause: () => void }
+export interface PlayerHandle { pause: () => void; seek: (t: number) => void }
 
 interface Props {
   active: boolean;                 // false while the mic engine owns the strip
@@ -51,7 +51,10 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
   const holder = useRef<HTMLDivElement>(null);
   const played = useRef(false);
 
-  useImperativeHandle(ref, () => ({ pause: () => yt.current?.pauseVideo?.() }));
+  useImperativeHandle(ref, () => ({
+    pause: () => yt.current?.pauseVideo?.(),
+    seek: (t: number) => yt.current?.seekTo?.(t, true),
+  }));
 
   async function search() {
     if (!q.trim()) return;
