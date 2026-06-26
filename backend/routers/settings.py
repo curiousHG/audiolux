@@ -33,6 +33,8 @@ async def explain():
         "mood_families": M.MOOD_FAMILIES,
         "speed": {"lo": playermod.SPEED_LO, "span": playermod.SPEED_SPAN,
                   "min": playermod.SPEED_MIN, "max": playermod.SPEED_MAX},
+        "dsp": {"sr": analysis.SR, "n_fft": analysis.NFFT, "hop": analysis.HOP,
+                "nbars": analysis.NBARS, "fps": round(analysis.SR / analysis.HOP, 1)},
         "configs": ["Default"] + configs.names(),
     }
 

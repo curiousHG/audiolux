@@ -11,7 +11,21 @@ interface Explain {
   freq_colors: string[];
   color_hex: Record<string, string>;
   speed: { lo: number; span: number; min: number; max: number };
+  dsp: { sr: number; n_fft: number; hop: number; nbars: number; fps: number };
   configs: string[];
+}
+
+// how each FEATURE is computed from the audio (grounded in analysis.analyze)
+function features(dsp: Explain["dsp"]): [string, string, string][] {
+  return [
+    ["STFT", `librosa.stft(y, n_fft=${dsp.n_fft}, hop=${dsp.hop}) @ ${dsp.sr} Hz`, `magnitude spectrogram S — the basis for everything, ~${dsp.fps} frames/s`],
+    ["Loudness", "librosa.feature.rms(S)", "per-frame RMS → dB vs the song's 95th-pct level"],
+    ["Spectrum", `${dsp.nbars} log bars 30 Hz–16 kHz (mean |S|), ÷ each bar's song-average`, "whitened bars → 6 colour groups"],
+    ["Percussiveness", "librosa.decompose.hpss(S)", "harmonic/percussive split → p = ΣP / (ΣH + ΣP)"],
+    ["Beats & tempo", "onset_strength → beat_track / feature.tempo(aggregate=None)", "beat grid + global BPM + local BPM curve (octave-folded)"],
+    ["Spectral centroid", "librosa.feature.spectral_centroid(S)", "the 'brightness' of the timbre (telemetry line)"],
+    ["Build/release", "slow EMA of brightness (α = 0.02)", "brightness vs its slow average → direction"],
+  ];
 }
 
 const GROUPS = ["Loudness → Brightness", "Spectrum → Colour", "Energy → Mood", "Tempo → Speed", "Build/Release → Direction"];
@@ -132,6 +146,23 @@ export default function HowItWorks({ act, onPlanChange }: { act: (u: string) => 
             <DiagramBox title="Decisions" lines={["→ brightness", "→ colour", "→ mood → family", "→ speed", "→ direction"]} />
             <ChevronRight size={16} className="text-dim shrink-0" />
             <DiagramBox title="🎚 mode" lines={["family + colour", "→ mode #", "→ 💡 strip"]} />
+          </div>
+
+          {/* features — how they're computed */}
+          <div className="bg-panel2 border border-line rounded-lg p-3">
+            <div className="text-xs font-semibold text-[#c7ccd8] mb-2">
+              Features <span className="text-mute font-normal">— how they're computed from the audio</span>
+              <span className="text-[10px] text-dim font-mono ml-2">analysis.analyze</span>
+            </div>
+            <div className="grid md:grid-cols-2 gap-x-6 gap-y-2">
+              {features(d.dsp).map(([fname, code, desc]) => (
+                <div key={fname} className="text-xs">
+                  <span className="text-ink font-medium">{fname}</span>
+                  <code className={cx(fx, "ml-1.5")}>{code}</code>
+                  <div className="text-mute mt-0.5">{desc}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* config bar */}
