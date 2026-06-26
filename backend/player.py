@@ -168,8 +168,9 @@ class PlayerEngine:
                 self._last_bright = b
                 await self._safe(self.c.send(P.brightness(b), critical=False))
 
-        if cfg["react_speed"] and self.tl["bpm"] > 0:
-            sp = int(_clamp(round(25 + (self.tl["bpm"] - 70) / 90 * 75), 5, 100))
+        # animation speed tracks the DETECTED (local) tempo, so it follows the song
+        if cfg["react_speed"] and self.bpm_local > 0:
+            sp = int(_clamp(round(25 + (self.bpm_local - 70) / 90 * 75), 5, 100))
             self.speed_val = sp
             if abs(sp - self._last_speed) >= 5:
                 self._last_speed = sp
