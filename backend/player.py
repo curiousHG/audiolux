@@ -109,9 +109,10 @@ class PlayerEngine:
             return -1
         return max(0, bisect.bisect_right(self._plan_t0, t) - 1)
 
-    def signals(self, n=420):
+    def signals(self, n=800):
         """Downsampled full-song brightness + colour arrays, plus the times at which
-        the effect direction flips, for the timeline view."""
+        the effect direction flips, for the timeline view. (Denser colour so the
+        per-frame strobe variation is visible.)"""
         bright, colors, dt = self.tl["bright"], self.tl["color"], self.tl["dt"]
         bpmc = self.tl.get("bpm_curve") or []
         m = len(bright)

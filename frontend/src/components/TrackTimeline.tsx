@@ -99,6 +99,19 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
   const yMode = (m: number) => modeLineY + MODE_H - 3 - ((m - mMin) / Math.max(1, mMax - mMin)) * (MODE_H - 9);
 
   const winSegs = plan.segments.filter((s) => s.t1 > winStart && s.t0 < winEnd);
+
+  // actual strip colour over time: mode segments hold their colour; STROBE segments
+  // flash the live per-frame colour, so use scolor[i] inside them.
+  const segT0 = plan.segments.map((s) => s.t0);
+  const segAt = (t: number) => {
+    let lo = 0, hi = segT0.length - 1, idx = 0;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (segT0[mid] <= t) { idx = mid; lo = mid + 1; } else hi = mid - 1; }
+    return plan.segments[idx];
+  };
+  const colourAt = (i: number) => {
+    const s = segAt(st[i]);
+    return s && s.kind === "mode" ? s.color : plan.scolor[i];
+  };
   const labels: Array<[string, number, string]> = [
     ["BPM", bpmY + BPM_H / 2, "#7b8395"],
     ["Brightness", brY + BR_H / 2, "#7b8395"],
@@ -131,11 +144,12 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
           <path d={`${bpath}L${W - PADR} ${brY + BR_H} L${GUTTER} ${brY + BR_H} Z`} fill="#5ad28a22" />
           <path d={bpath} fill="none" stroke="#5ad28a" strokeWidth={1.4} />
 
-          {/* colour lane — from SEGMENTS, so it matches the piano-roll below */}
-          {winSegs.map((s, k) => {
-            const x0 = x(Math.max(s.t0, winStart)), x1 = x(Math.min(s.t1, winEnd));
-            return <rect key={k} x={x0} y={colY} width={Math.max(1, x1 - x0)} height={COL_H} fill={colorHex[s.color] || "#333"} />;
-          })}
+          {/* colour lane — the strip's ACTUAL colour over time (held for modes,
+              per-frame for strobe) so it matches what you see on the strip */}
+          {st.map((t, i) => (t >= winStart - 1 && t <= winEnd) ? (
+            <rect key={i} x={x(t)} y={colY} width={Math.max(1, (i + 1 < st.length ? x(st[i + 1]) : x(winEnd)) - x(t)) + 0.5}
+                  height={COL_H} fill={colorHex[colourAt(i)] || "#333"} />
+          ) : null)}
 
           {/* direction markers */}
           {(plan.dir_marks || []).filter((m) => m.t >= winStart && m.t <= winEnd).map((m, k) => (
@@ -163,12 +177,21 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
           {groups.map((fam, g) => freq.map((c, ci) => (
             <rect key={`sw-${fam}-${ci}`} x={GUTTER + 1} y={subTop(g, ci) + 1} width={4} height={SUB_H - 3} fill={colorHex[c] || "#444"} />
           )))}
-          {winSegs.filter((s) => groups.includes(s.family)).map((s, k) => {
+          {/* mode segments: one block in their colour sub-lane */}
+          {winSegs.filter((s) => s.kind === "mode" && groups.includes(s.family)).map((s, k) => {
             const g = groups.indexOf(s.family);
             let ci = freq.indexOf(s.color); if (ci < 0) ci = nSub - 1;
             const x0 = x(Math.max(s.t0, winStart)), x1 = x(Math.min(s.t1, winEnd));
-            return <rect key={k} x={x0} y={subTop(g, ci) + 1} width={Math.max(2, x1 - x0)} height={SUB_H - 2}
-                         fill={colorHex[s.color] || "#888"} opacity={s.kind === "strobe" ? 0.7 : 1} />;
+            return <rect key={k} x={x0} y={subTop(g, ci) + 1} width={Math.max(2, x1 - x0)} height={SUB_H - 2} fill={colorHex[s.color] || "#888"} />;
+          })}
+          {/* strobe segments: per-frame colour scattered across the Colour-Strobe sub-lanes */}
+          {groups.includes("Colour Strobe") && st.map((t, i) => {
+            if (t < winStart - 1 || t > winEnd) return null;
+            const s = segAt(t); if (!s || s.kind !== "strobe") return null;
+            const g = groups.indexOf("Colour Strobe");
+            let ci = freq.indexOf(plan.scolor[i]); if (ci < 0) ci = nSub - 1;
+            const w = Math.max(1.5, (i + 1 < st.length ? x(st[i + 1]) : x(winEnd)) - x(t));
+            return <rect key={"sb" + i} x={x(t)} y={subTop(g, ci) + 1} width={w} height={SUB_H - 2} fill={colorHex[plan.scolor[i]] || "#888"} />;
           })}
         </g>
 
@@ -195,8 +218,9 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
            onPointerDown={(e) => { drag.current = "ov"; (e.target as Element).setPointerCapture?.(e.pointerId); seekFrom(ovRef.current, xAll, e.clientX); }}
            onPointerMove={(e) => { if (drag.current === "ov") seekFrom(ovRef.current, xAll, e.clientX); }}
            onPointerUp={() => { drag.current = null; }}>
-        {plan.segments.map((s, k) => (
-          <rect key={k} x={xAll(s.t0)} y={0} width={Math.max(1, xAll(s.t1) - xAll(s.t0))} height={OV_STRIP} fill={colorHex[s.color] || "#333"} />
+        {st.map((t, i) => (
+          <rect key={i} x={xAll(t)} y={0} width={Math.max(1, (i + 1 < st.length ? xAll(st[i + 1]) : W - 6) - xAll(t)) + 0.5}
+                height={OV_STRIP} fill={colorHex[colourAt(i)] || "#333"} />
         ))}
         <path d={ovpath} fill="none" stroke="#5ad28a" strokeWidth={1} opacity={0.8} />
         <rect x={xAll(winStart)} y={0} width={Math.max(2, xAll(winEnd) - xAll(winStart))} height={OV_H}
