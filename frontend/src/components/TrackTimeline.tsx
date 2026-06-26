@@ -14,7 +14,7 @@ interface Props {
 const WIN = 30;                      // seconds visible at once
 const GUTTER = 96, PADR = 12, TOP = 4;
 const BPM_H = 28, BR_H = 36, COL_H = 12, DIR_H = 14, MODE_H = 44, SUB_H = 9;
-const GAP = 6, GROUP_GAP = 6, AXIS_H = 20, OV_H = 44, OV_STRIP = 12;
+const GAP = 8, GROUP_GAP = 8, AXIS_H = 20, OV_H = 44, OV_STRIP = 12;
 
 function useWidth() {
   const ref = useRef<HTMLDivElement>(null);
@@ -47,6 +47,7 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
   const groups = plan.families;
   const dur = plan.duration || 1;
   const W = width;
+  const plotW = W - PADR - GUTTER;
 
   const bpmY = TOP;
   const brY = bpmY + BPM_H + GAP;
@@ -75,17 +76,13 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
   };
 
   const st = plan.sig_t, lv = plan.level, bp = plan.bpm_curve || [];
-  const rlabel = (s: string, y: number, col = "#7b8395") =>
-    <text x={GUTTER - 8} y={y} fill={col} fontSize={10} textAnchor="end" dominantBaseline="middle">{s}</text>;
   const inWin = (i: number) => st[i] >= winStart - 1 && st[i] <= winEnd + 1;
 
-  // BPM curve range
   const bpmVals = bp.filter((v) => v > 0);
   const bMin = bpmVals.length ? Math.min(...bpmVals) - 4 : 60;
   const bMax = bpmVals.length ? Math.max(...bpmVals) + 4 : 180;
   const yBpm = (v: number) => bpmY + BPM_H - 2 - ((v - bMin) / Math.max(1, bMax - bMin)) * (BPM_H - 4);
 
-  // brightness + bpm paths (within window)
   let bpath = "", bpmPath = "";
   for (let i = 0; i < st.length; i++) {
     if (!inWin(i)) continue;
@@ -96,11 +93,19 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
   for (let i = 0; i < st.length; i++)
     ovpath += `${ovpath ? "L" : "M"}${xAll(st[i]).toFixed(1)} ${(OV_H - lv[i] * (OV_H - OV_STRIP - 2)).toFixed(1)} `;
 
-  // mode line: y = mode number
   const modeSegs = plan.segments.filter((s) => s.kind === "mode" && s.mode != null);
   const mm = modeSegs.map((s) => s.mode as number);
   const mMin = mm.length ? Math.min(...mm) : 1, mMax = mm.length ? Math.max(...mm) : 200;
   const yMode = (m: number) => modeLineY + MODE_H - 3 - ((m - mMin) / Math.max(1, mMax - mMin)) * (MODE_H - 9);
+
+  const winSegs = plan.segments.filter((s) => s.t1 > winStart && s.t0 < winEnd);
+  const labels: Array<[string, number, string]> = [
+    ["BPM", bpmY + BPM_H / 2, "#7b8395"],
+    ["Brightness", brY + BR_H / 2, "#7b8395"],
+    ["Colour", colY + COL_H / 2, "#7b8395"],
+    ["Dir", dirY + DIR_H / 2, "#9aa3b5"],
+    ["Mode", modeLineY + MODE_H / 2, "#7b8395"],
+  ];
 
   return (
     <>
@@ -108,72 +113,76 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
            onPointerDown={(e) => { drag.current = "main"; (e.target as Element).setPointerCapture?.(e.pointerId); seekFrom(mainRef.current, x, e.clientX); }}
            onPointerMove={(e) => { if (drag.current === "main") seekFrom(mainRef.current, x, e.clientX); }}
            onPointerUp={() => { drag.current = null; }}>
-        {/* BPM curve */}
-        <rect x={GUTTER} y={bpmY} width={W - PADR - GUTTER} height={BPM_H} fill="#0a0c11" />
-        {rlabel("BPM", bpmY + BPM_H / 2)}
-        <path d={bpmPath} fill="none" stroke="#00d8e6" strokeWidth={1.4} />
+        <defs><clipPath id="tlplot"><rect x={GUTTER} y={0} width={plotW} height={mainH} /></clipPath></defs>
 
-        {/* brightness */}
-        <rect x={GUTTER} y={brY} width={W - PADR - GUTTER} height={BR_H} fill="#0a0c11" />
-        {rlabel("Brightness", brY + BR_H / 2)}
-        <path d={`${bpath}L${W - PADR} ${brY + BR_H} L${GUTTER} ${brY + BR_H} Z`} fill="#5ad28a22" />
-        <path d={bpath} fill="none" stroke="#5ad28a" strokeWidth={1.4} />
+        {/* lane backgrounds (with gaps between = clean dividers) */}
+        <rect x={GUTTER} y={bpmY} width={plotW} height={BPM_H} fill="#0a0c11" />
+        <rect x={GUTTER} y={brY} width={plotW} height={BR_H} fill="#0a0c11" />
+        <rect x={GUTTER} y={colY} width={plotW} height={COL_H} fill="#0a0c11" />
+        <rect x={GUTTER} y={dirY} width={plotW} height={DIR_H} fill="#0c0f16" />
+        <rect x={GUTTER} y={modeLineY} width={plotW} height={MODE_H} fill="#0a0c11" />
+        {groups.map((fam, g) => freq.map((_, ci) => (
+          <rect key={`${fam}-${ci}`} x={GUTTER} y={subTop(g, ci)} width={plotW} height={SUB_H - 1} fill={ci % 2 ? "#0b0e14" : "#0a0c11"} />
+        )))}
 
-        {/* colour */}
-        {rlabel("Colour", colY + COL_H / 2)}
-        {st.map((t, i) => (t >= winStart - 1 && t <= winEnd) ? (
-          <rect key={i} x={x(t)} y={colY} width={Math.max(1, (i + 1 < st.length ? x(st[i + 1]) : x(winEnd)) - x(t)) + 0.5}
-                height={COL_H} fill={colorHex[plan.scolor[i]] || "#333"} />
-        ) : null)}
+        {/* all data clipped to the plot area (never enters the gutter) */}
+        <g clipPath="url(#tlplot)">
+          <path d={bpmPath} fill="none" stroke="#00d8e6" strokeWidth={1.4} />
+          <path d={`${bpath}L${W - PADR} ${brY + BR_H} L${GUTTER} ${brY + BR_H} Z`} fill="#5ad28a22" />
+          <path d={bpath} fill="none" stroke="#5ad28a" strokeWidth={1.4} />
 
-        {/* direction markers */}
-        {rlabel("Dir", dirY + DIR_H / 2, "#9aa3b5")}
-        {(plan.dir_marks || []).filter((m) => m.t >= winStart && m.t <= winEnd).map((m, k) => (
-          <g key={k}>
-            <line x1={x(m.t)} y1={dirY} x2={x(m.t)} y2={modesBottom} stroke="#ffffff14" strokeDasharray="3 3" />
-            <text x={x(m.t)} y={dirY + DIR_H / 2} fill={m.fwd ? "#5ad28a" : "#e0a050"} fontSize={11} textAnchor="middle" dominantBaseline="middle">{m.fwd ? "▶" : "◀"}</text>
-          </g>
-        ))}
+          {/* colour lane — from SEGMENTS, so it matches the piano-roll below */}
+          {winSegs.map((s, k) => {
+            const x0 = x(Math.max(s.t0, winStart)), x1 = x(Math.min(s.t1, winEnd));
+            return <rect key={k} x={x0} y={colY} width={Math.max(1, x1 - x0)} height={COL_H} fill={colorHex[s.color] || "#333"} />;
+          })}
 
-        {/* mode line + dots (y = mode number) */}
-        <rect x={GUTTER} y={modeLineY} width={W - PADR - GUTTER} height={MODE_H} fill="#0a0c11" />
-        {rlabel("Mode", modeLineY + MODE_H / 2)}
-        {modeSegs.map((s, k) => {
-          const next = modeSegs[k + 1];
-          return next && next.t0 < winEnd && s.t1 > winStart ? (
-            <line key={"c" + k} x1={x(Math.min(s.t1, winEnd))} y1={yMode(s.mode!)} x2={x(Math.max(next.t0, winStart))} y2={yMode(next.mode!)} stroke="#ffffff22" strokeWidth={1} />
-          ) : null;
-        })}
-        {modeSegs.filter((s) => s.t1 > winStart && s.t0 < winEnd).map((s, k) => (
-          <g key={k}>
-            <line x1={x(Math.max(s.t0, winStart))} y1={yMode(s.mode!)} x2={x(Math.min(s.t1, winEnd))} y2={yMode(s.mode!)} stroke={colorHex[s.color] || "#888"} strokeWidth={2} />
-            {s.t0 >= winStart - 0.2 && <circle cx={x(s.t0)} cy={yMode(s.mode!)} r={3} fill={colorHex[s.color] || "#888"} stroke="#0a0c11" />}
-          </g>
-        ))}
+          {/* direction markers */}
+          {(plan.dir_marks || []).filter((m) => m.t >= winStart && m.t <= winEnd).map((m, k) => (
+            <g key={k}>
+              <line x1={x(m.t)} y1={dirY} x2={x(m.t)} y2={modesBottom} stroke="#ffffff14" strokeDasharray="3 3" />
+              <text x={x(m.t)} y={dirY + DIR_H / 2} fill={m.fwd ? "#5ad28a" : "#e0a050"} fontSize={11} textAnchor="middle" dominantBaseline="middle">{m.fwd ? "▶" : "◀"}</text>
+            </g>
+          ))}
 
-        {/* mode piano-roll: family groups × colour sub-lanes */}
-        {groups.map((fam, g) => (
-          <g key={fam}>
-            {freq.map((c, ci) => (
-              <g key={ci}>
-                <rect x={GUTTER} y={subTop(g, ci)} width={W - PADR - GUTTER} height={SUB_H - 1} fill={ci % 2 ? "#0b0e14" : "#0a0c11"} />
-                <rect x={GUTTER + 1} y={subTop(g, ci) + 1} width={4} height={SUB_H - 3} fill={colorHex[c] || "#444"} />
-              </g>
-            ))}
-            {rlabel(fam, subTop(g, 0) + groupH / 2, "#c7ccd8")}
-          </g>
-        ))}
-        {plan.segments.filter((s) => s.t1 > winStart && s.t0 < winEnd && groups.includes(s.family)).map((s, k) => {
-          const g = groups.indexOf(s.family);
-          let ci = freq.indexOf(s.color); if (ci < 0) ci = nSub - 1;
-          const x0 = x(Math.max(s.t0, winStart)), x1 = x(Math.min(s.t1, winEnd));
-          return <rect key={k} x={x0} y={subTop(g, ci) + 1} width={Math.max(2, x1 - x0)} height={SUB_H - 2}
-                       fill={colorHex[s.color] || "#888"} opacity={s.kind === "strobe" ? 0.7 : 1} />;
-        })}
+          {/* mode line + dots */}
+          {modeSegs.map((s, k) => {
+            const next = modeSegs[k + 1];
+            return next && next.t0 < winEnd && s.t1 > winStart ? (
+              <line key={"c" + k} x1={x(Math.min(s.t1, winEnd))} y1={yMode(s.mode!)} x2={x(Math.max(next.t0, winStart))} y2={yMode(next.mode!)} stroke="#ffffff22" strokeWidth={1} />
+            ) : null;
+          })}
+          {modeSegs.filter((s) => s.t1 > winStart && s.t0 < winEnd).map((s, k) => (
+            <g key={k}>
+              <line x1={x(Math.max(s.t0, winStart))} y1={yMode(s.mode!)} x2={x(Math.min(s.t1, winEnd))} y2={yMode(s.mode!)} stroke={colorHex[s.color] || "#888"} strokeWidth={2} />
+              {s.t0 >= winStart - 0.2 && <circle cx={x(s.t0)} cy={yMode(s.mode!)} r={3} fill={colorHex[s.color] || "#888"} stroke="#0a0c11" />}
+            </g>
+          ))}
+
+          {/* piano-roll: family groups × colour sub-lanes */}
+          {groups.map((fam, g) => freq.map((c, ci) => (
+            <rect key={`sw-${fam}-${ci}`} x={GUTTER + 1} y={subTop(g, ci) + 1} width={4} height={SUB_H - 3} fill={colorHex[c] || "#444"} />
+          )))}
+          {winSegs.filter((s) => groups.includes(s.family)).map((s, k) => {
+            const g = groups.indexOf(s.family);
+            let ci = freq.indexOf(s.color); if (ci < 0) ci = nSub - 1;
+            const x0 = x(Math.max(s.t0, winStart)), x1 = x(Math.min(s.t1, winEnd));
+            return <rect key={k} x={x0} y={subTop(g, ci) + 1} width={Math.max(2, x1 - x0)} height={SUB_H - 2}
+                         fill={colorHex[s.color] || "#888"} opacity={s.kind === "strobe" ? 0.7 : 1} />;
+          })}
+        </g>
 
         <AxisBottom top={modesBottom + 2} scale={x} numTicks={6} stroke="#2a3142" tickStroke="#2a3142"
                     tickFormat={(v) => fmtTime(v as number)}
                     tickLabelProps={() => ({ fill: "#5b6273", fontSize: 9, textAnchor: "middle" })} />
+
+        {/* y-axis labels LAST (on top, in the gutter — clip keeps data out of here) */}
+        {labels.map(([s, y, col], i) => (
+          <text key={i} x={GUTTER - 8} y={y} fill={col} fontSize={10} textAnchor="end" dominantBaseline="middle">{s}</text>
+        ))}
+        {groups.map((fam, g) => (
+          <text key={fam} x={GUTTER - 8} y={subTop(g, 0) + groupH / 2} fill="#c7ccd8" fontSize={10} textAnchor="end" dominantBaseline="middle">{fam}</text>
+        ))}
 
         {/* playhead */}
         <line x1={x(pos)} y1={TOP} x2={x(pos)} y2={modesBottom} stroke="#fff" strokeWidth={1.5} />
@@ -186,9 +195,8 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
            onPointerDown={(e) => { drag.current = "ov"; (e.target as Element).setPointerCapture?.(e.pointerId); seekFrom(ovRef.current, xAll, e.clientX); }}
            onPointerMove={(e) => { if (drag.current === "ov") seekFrom(ovRef.current, xAll, e.clientX); }}
            onPointerUp={() => { drag.current = null; }}>
-        {st.map((t, i) => (
-          <rect key={i} x={xAll(t)} y={0} width={Math.max(1, (i + 1 < st.length ? xAll(st[i + 1]) : W - 6) - xAll(t)) + 0.5}
-                height={OV_STRIP} fill={colorHex[plan.scolor[i]] || "#333"} />
+        {plan.segments.map((s, k) => (
+          <rect key={k} x={xAll(s.t0)} y={0} width={Math.max(1, xAll(s.t1) - xAll(s.t0))} height={OV_STRIP} fill={colorHex[s.color] || "#333"} />
         ))}
         <path d={ovpath} fill="none" stroke="#5ad28a" strokeWidth={1} opacity={0.8} />
         <rect x={xAll(winStart)} y={0} width={Math.max(2, xAll(winEnd) - xAll(winStart))} height={OV_H}
