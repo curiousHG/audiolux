@@ -19,7 +19,7 @@ interface Props {
 
 export default function Header({ page, setPage, connected, powerOn, onPower }: Props) {
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-3 flex-wrap bg-card/95 backdrop-blur border-b border-line px-4 sm:px-6 py-3">
+    <header className="shrink-0 flex items-center gap-3 flex-wrap bg-card border-b border-line px-4 sm:px-6 py-2">
       <h1 className="text-lg font-semibold tracking-[.3px]">audiolux</h1>
       <nav className="flex gap-1 ml-1">
         {TABS.map(([id, label, Icon]) => (

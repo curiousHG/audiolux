@@ -140,8 +140,8 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
   }, [ready, active, onTrackState]);
 
   return (
-    <div>
-      <h2 className={cx(h2, "flex items-center justify-between flex-wrap gap-2")}>
+    <div className="flex flex-col min-h-0 gap-2 flex-1">
+      <h2 className={cx(h2, "flex items-center justify-between flex-wrap gap-2 shrink-0 !mb-0 !border-0 !pb-0")}>
         <span>Music Player</span>
         <span className="flex gap-1.5">
           <button className={cx(btnMini, "flex items-center gap-1", smart && "!bg-on")}
@@ -152,8 +152,8 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
                   onClick={() => onStrobe(!strobe)}><Zap size={12} /> Strobe: {strobe ? "ON" : "OFF"}</button>
         </span>
       </h2>
-      <div className="flex gap-2">
-        <input className="flex-1 px-3 py-[11px] text-sm" placeholder="search a song on YouTube…" value={q}
+      <div className="flex gap-2 shrink-0">
+        <input className="flex-1 px-3 py-2 text-sm" placeholder="search a song on YouTube…" value={q}
                onChange={(e) => setQ(e.target.value)}
                onFocus={() => results.length && setShowResults(true)}
                onKeyDown={(e) => e.key === "Enter" && search()} />
@@ -163,7 +163,7 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
       </div>
 
       {showResults && results.length > 0 && (
-        <div className="my-2.5 max-h-[230px] overflow-y-auto flex flex-col gap-1">
+        <div className="shrink-0 max-h-[40%] overflow-y-auto flex flex-col gap-1">
           {results.map((r) => (
             <div key={r.id}
                  className={cx("flex items-center gap-3 px-3 py-2 rounded-[10px] bg-panel border cursor-pointer transition-colors hover:bg-[#1a1f2c]",
@@ -177,10 +177,10 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
       )}
 
       {videoId && (
-        <div className="mt-3">
-          {title && <div className="text-sm font-medium mb-2 truncate" title={title}>♪ {title}</div>}
-          <div className="video-frame w-full aspect-video rounded-xl overflow-hidden bg-black border border-line"><div ref={holder} /></div>
-          <div className="text-xs text-mute mt-2 text-center">
+        <div className="flex-1 min-h-0 flex flex-col gap-1.5">
+          {title && <div className="text-sm font-medium truncate shrink-0" title={title}>♪ {title}</div>}
+          <div className="video-frame flex-1 min-h-0 w-full rounded-xl overflow-hidden bg-black border border-line"><div ref={holder} /></div>
+          <div className="text-[11px] text-mute text-center shrink-0">
             {load === "error" ? `✗ ${err}` :
               load === "ready" ? "✓ lights synced to this track" :
                 load === "analyzing" ? "analysing audio (beat grid + light timeline)…" :

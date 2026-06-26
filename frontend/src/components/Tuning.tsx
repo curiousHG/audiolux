@@ -31,28 +31,31 @@ export default function Tuning({ ex }: { ex: UseExplain }) {
         <button className={cx(btnMini, "flex items-center gap-1")} onClick={() => { saveConfig(name); setName(""); }}><Save size={11} /> Save</button>
       </div>
 
-      {/* groups spread across the available vertical space */}
-      <div className="flex-1 flex flex-col justify-between gap-4 min-h-0">
-        {GROUPS.map((g) => (
-          <div key={g}>
-            <div className="text-[11px] font-semibold text-[#c7ccd8] mb-2 pb-1 border-b border-line">{g}</div>
-            <div className="flex flex-col gap-2.5">
-              {byGroup(g).map(([k, p]) => (
-                <div key={k} className="flex items-center gap-2">
-                  <span className="text-[11px] text-mute w-[108px] shrink-0 flex items-center gap-1">
-                    {p.label}
-                    <span title={p.desc} className="inline-flex cursor-help"><Info size={11} className="text-dim shrink-0" /></span>
-                  </span>
-                  <input type="range" min={p.min} max={p.max} step={p.step} value={vals[k] ?? p.value}
-                         onChange={(e) => setVal(k, +e.target.value)} onMouseUp={() => tune(k)} onTouchEnd={() => tune(k)} className="flex-1" />
-                  <span className="text-[11px] text-accent w-[38px] text-right tabular-nums">{vals[k] ?? p.value}</span>
-                </div>
-              ))}
+      {/* groups divide the height weighted by their slider count, so every slider
+          gets a fair, evenly-spaced share of the vertical space */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {GROUPS.map((g) => {
+          const items = byGroup(g);
+          return (
+            <div key={g} className="flex flex-col min-h-0" style={{ flex: `${items.length} 1 0%` }}>
+              <div className="text-[11px] font-semibold text-[#c7ccd8] shrink-0 pb-0.5 mb-0.5 border-b border-line">{g}</div>
+              <div className="flex-1 flex flex-col justify-around min-h-0">
+                {items.map(([k, p]) => (
+                  <div key={k} className="flex items-center gap-2">
+                    <span className="text-[11px] text-mute w-[40%] max-w-[120px] shrink-0 flex items-center gap-1 truncate">
+                      <span className="truncate">{p.label}</span>
+                      <span title={p.desc} className="inline-flex cursor-help shrink-0"><Info size={11} className="text-dim" /></span>
+                    </span>
+                    <input type="range" min={p.min} max={p.max} step={p.step} value={vals[k] ?? p.value}
+                           onChange={(e) => setVal(k, +e.target.value)} onMouseUp={() => tune(k)} onTouchEnd={() => tune(k)} className="flex-1 min-w-0" />
+                    <span className="text-[11px] text-accent w-9 text-right tabular-nums shrink-0">{vals[k] ?? p.value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <div className="text-[10px] text-dim">Analysis sliders re-run analysis on release; speed applies instantly.</div>
     </div>
   );
 }
