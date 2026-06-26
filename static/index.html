@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>LEDDMX Control</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="card">
+  <h1>LEDDMX&nbsp;Control <span id="conn" class="pill">…</span></h1>
+  <div class="sub">strip: LEDDMX-03-1821 · LED LAMP / LEDDMX-03 family</div>
+
+  <div class="cols">
+
+    <!-- ───────── Power & Color ───────── -->
+    <section class="col">
+      <h2>Power &amp; Color</h2>
+      <div class="row" style="margin-top:0">
+        <button class="on" onclick="api('/api/power?on=1')">ON</button>
+        <button class="off" onclick="api('/api/power?on=0')">OFF</button>
+      </div>
+      <div class="wheelwrap"><canvas id="wheel"></canvas><div id="marker"></div></div>
+      <input type="color" id="col" value="#ff0000" oninput="pickColor(this.value)">
+      <div class="swatches" id="sw"></div>
+    </section>
+
+    <!-- ───────── Adjust & Effects ───────── -->
+    <section class="col">
+      <h2>Adjust &amp; Effects</h2>
+      <label>Brightness <span class="val" id="bv">60</span></label>
+      <input type="range" min="1" max="100" value="60" id="br"
+             oninput="bv.textContent=this.value" onchange="api('/api/bright?v='+this.value)">
+      <label>Speed <span class="val" id="spv">50</span></label>
+      <input type="range" min="1" max="100" value="50" id="sp"
+             oninput="spv.textContent=this.value" onchange="api('/api/speed?v='+this.value)">
+      <label>Effect (grouped by family)</label>
+      <select id="modeSel" onchange="applyMode()"></select>
+      <label>Direction <span class="val" id="modeNum"></span></label>
+      <div class="row" style="margin-top:0">
+        <button id="fwdBtn" class="on" onclick="setDir(1)">⟶&nbsp;Forward</button>
+        <button id="bwdBtn" onclick="setDir(0)">⟵&nbsp;Backward</button>
+      </div>
+      <div class="mode" style="margin-top:12px">
+        <button onclick="stepNum(-1)">‹&nbsp;Prev</button>
+        <input type="number" id="md" min="1" max="255" value="95">
+        <button onclick="stepNum(1)">Next&nbsp;›</button>
+        <button style="flex:.7" onclick="goNum()">Go</button>
+      </div>
+    </section>
+
+    <!-- ───────── Music Engine controls ───────── -->
+    <section class="col">
+      <h2>Music Engine</h2>
+      <div class="row" style="margin-top:0">
+        <button id="musicBtn" onclick="toggleMusic()">🎵&nbsp;Music&nbsp;Engine:&nbsp;OFF</button>
+      </div>
+      <div id="mctl" style="display:none">
+        <label>Families to cycle (colour by frequency)</label>
+        <div class="fams" id="famToggles"></div>
+        <label>Reactions</label>
+        <div class="row" style="margin-top:0;flex-wrap:wrap">
+          <button id="t_bright" class="on small" onclick="toggleCfg('react_bright',this)">Brightness</button>
+          <button id="t_speed"  class="on small" onclick="toggleCfg('react_speed',this)">Speed</button>
+          <button id="t_modes"  class="on small" onclick="toggleCfg('switch_modes',this)">Switch&nbsp;modes</button>
+          <button id="t_dir"    class="on small" onclick="toggleCfg('use_direction',this)">Direction</button>
+        </div>
+        <label>Beat sensitivity (base C) <span class="val" id="senv">1.50</span></label>
+        <input type="range" min="110" max="240" value="150" id="sen"
+               oninput="senv.textContent=(this.value/100).toFixed(2)" onchange="cfg('sensitivity',this.value/100)">
+        <label>Mode change every <span class="val" id="bpsv">4</span> beats</label>
+        <input type="range" min="1" max="16" value="4" id="bps"
+               oninput="bpsv.textContent=this.value" onchange="cfg('beats_per_switch',this.value)">
+        <label>Brightness floor <span class="val" id="bfv">12</span>%</label>
+        <input type="range" min="0" max="80" value="12" id="bf"
+               oninput="bfv.textContent=this.value" onchange="cfg('bright_floor',this.value)">
+      </div>
+    </section>
+  </div>
+
+  <!-- ───────── Full-width live telemetry ───────── -->
+  <div class="telemetry" id="telemetry" style="display:none">
+    <h2>Live telemetry — what the music says vs what the light does</h2>
+    <div class="readouts">
+      <div class="ro"><span>BPM</span><b id="bpm">—</b></div>
+      <div class="ro"><span>Beat</span><b><i id="beatDot"></i></b></div>
+      <div class="ro"><span>Threshold C</span><b id="cval">—</b></div>
+      <div class="ro"><span>Colour</span><b id="colName"><i id="colDot"></i>—</b></div>
+      <div class="ro"><span>Family</span><b id="nowFam">—</b></div>
+      <div class="ro"><span>Effect</span><b id="curMode">—</b></div>
+      <div class="ro"><span>Dir</span><b id="nowDir">—</b></div>
+    </div>
+    <div class="tgrid">
+      <div class="tcard">
+        <div class="tlabel">Spectrum <span class="tnote">(bars coloured by frequency→colour band)</span></div>
+        <canvas id="spec"></canvas>
+      </div>
+      <div class="tcard">
+        <div class="tlabel">Loudness → Brightness
+          <span class="tnote"><b style="color:#7fd0ff">loudness(target)</b> · <b style="color:#5ad28a">brightness(sent)</b></span></div>
+        <canvas id="lbGraph"></canvas>
+      </div>
+      <div class="tcard">
+        <div class="tlabel">Frequency → Colour <span class="tnote">(chosen colour over time · line = spectral centroid)</span></div>
+        <canvas id="colGraph"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────── Soundboard ───────── -->
+  <div class="board">
+    <h2>Soundboard <span class="boardsub">— click pads or use your keyboard (sound + light hit)</span></h2>
+    <div class="pads" id="pads"></div>
+  </div>
+
+  <!-- ───────── Command throughput ───────── -->
+  <div class="cmdwrap">
+    <label>Commands sent to strip <span class="val" id="cmdRate">0 /s</span>
+      <span id="cmdTotal" class="muted"></span>
+      <button class="mini" onclick="benchmark()">Benchmark strip max-rate</button>
+      <span id="benchResult" class="muted"></span></label>
+    <canvas id="cmdGraph"></canvas>
+  </div>
+
+  <div id="status"></div>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

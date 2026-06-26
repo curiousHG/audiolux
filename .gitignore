@@ -1,0 +1,21 @@
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# node / frontend build
+node_modules/
+frontend/dist/
+frontend/node_modules/
+
+# downloaded audio + precomputed timelines (regenerable cache)
+cache/
+
+# decompiled app / capture artifacts (large, not source)
+*.apk
+*.btsnoop
+btsnoop_hci.log
+bugreport*.zip
+
+# os
+.DS_Store
