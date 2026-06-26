@@ -146,10 +146,15 @@ class PlayerEngine:
         if playing and not self._prev_playing:
             self.stop_loading()
             await self._safe(self.c.send(P.power(True), critical=True))
+            self._seg_idx = -1                  # re-apply the current effect on resume
+        just_paused = self._prev_playing and not playing
         self._prev_playing = playing
         self.playing = playing
         self.pos, self._last_t = t, t
         if not playing:
+            # video paused -> freeze the strip on a static colour (it stops animating)
+            if just_paused:
+                await self._safe(self.c.send(P.color(*_rgb(self.color_code)), critical=True))
             return
 
         if cfg["react_bright"]:
