@@ -179,7 +179,7 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
       {videoId && (
         <div className="mt-3">
           {title && <div className="text-sm font-medium mb-2 truncate" title={title}>♪ {title}</div>}
-          <div className="video-frame w-full max-w-[640px] aspect-video mx-auto rounded-xl overflow-hidden bg-black border border-line"><div ref={holder} /></div>
+          <div className="video-frame w-full aspect-video rounded-xl overflow-hidden bg-black border border-line"><div ref={holder} /></div>
           <div className="text-xs text-mute mt-2 text-center">
             {load === "error" ? `✗ ${err}` :
               load === "ready" ? "✓ lights synced to this track" :

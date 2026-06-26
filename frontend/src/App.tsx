@@ -32,7 +32,7 @@ export default function App() {
             only hidden via CSS when on another page, so the timeline resumes on return */}
         <div className={page === "player" ? "" : "hidden"}>
           <div className={card}>
-            <div className="grid lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-4 items-start">
+            <div className="grid lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-4 items-stretch">
               <div className="flex flex-col gap-4 min-w-0">
                 <Player ref={m.playerRef} active={!m.micOn} smart={m.smart} onSmart={m.onSmart}
                         strobe={m.strobe} onStrobe={m.onStrobe}
