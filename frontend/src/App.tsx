@@ -3,7 +3,7 @@ import type {
   CmdStats, FamilyInfo, ModeGroup, MusicState, PlayerState, Telemetry as TelemetryT,
 } from "./api";
 import { api, get } from "./api";
-import { card, sectionTop, cx } from "./ui";
+import { card, sectionTop, h2, cx } from "./ui";
 import PowerColor from "./components/PowerColor";
 import Effects from "./components/Effects";
 import MusicEngine from "./components/MusicEngine";
@@ -42,6 +42,7 @@ export default function App() {
   const [micOn, setMicOn] = useState(false);
   const [smart, setSmart] = useState(false);
   const [strobe, setStrobe] = useState(true);
+  const [showManual, setShowManual] = useState(false);
   const [telem, setTelem] = useState<TelemetryT | null>(null);
   const hist = useRef<HistPoint[]>([]);
   const playerRef = useRef<PlayerHandle>(null);
@@ -136,15 +137,22 @@ export default function App() {
               strobe={strobe} onStrobe={onStrobe}
               onTrackState={onTrackState} onPlayingChange={onPlaying} />
 
-      {telem && (
-        <Telemetry telem={telem} hist={hist.current} colorHex={colorHex}
-                   barColors={barColors} num2name={num2name} />
-      )}
+      <Telemetry telem={telem} hist={hist.current} colorHex={colorHex}
+                 barColors={barColors} num2name={num2name} />
 
-      <div className={cx(sectionTop, "grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-[26px] items-start")}>
-        <PowerColor act={act} />
-        <Effects act={act} groups={groups} />
-        <MusicEngine act={act} families={families} micOn={micOn} onMicChange={setMicOn} />
+      <div className={sectionTop}>
+        <button onClick={() => setShowManual((s) => !s)}
+                className={cx(h2, "w-full flex items-center justify-between bg-transparent border-0 border-b border-line cursor-pointer p-0 pb-[7px]")}>
+          <span>⚙ Manual controls — colour, brightness, effects &amp; mic</span>
+          <span className="text-mute">{showManual ? "▾" : "▸"}</span>
+        </button>
+        {showManual && (
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-[26px] items-start mt-3.5">
+            <PowerColor act={act} />
+            <Effects act={act} groups={groups} />
+            <MusicEngine act={act} families={families} micOn={micOn} onMicChange={setMicOn} />
+          </div>
+        )}
       </div>
 
       <Soundboard act={act} />

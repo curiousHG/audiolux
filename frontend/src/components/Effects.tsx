@@ -69,11 +69,11 @@ export default function Effects({ act, groups }: { act: (u: string) => void; gro
 
       <label className={label}>Direction <span className={val}>#{md}</span></label>
       <div className={cx(row, "mt-0")}>
-        <button className={cx(btn, fwd && "!bg-on")} disabled={single} onClick={() => setDir(true)}>
-          {oc ? "⤢ Open" : "⟶ Forward"}
+        <button className={cx(btn, "text-xl", fwd && "!bg-on")} disabled={single} title={oc ? "Open" : "Forward"} onClick={() => setDir(true)}>
+          {oc ? "⤢" : "⟶"}
         </button>
-        <button className={cx(btn, !fwd && "!bg-on")} disabled={single} onClick={() => setDir(false)}>
-          {oc ? "⤡ Close" : "⟵ Backward"}
+        <button className={cx(btn, "text-xl", !fwd && "!bg-on")} disabled={single} title={oc ? "Close" : "Backward"} onClick={() => setDir(false)}>
+          {oc ? "⤡" : "⟵"}
         </button>
       </div>
       <div className="flex gap-2 items-center mt-3">
