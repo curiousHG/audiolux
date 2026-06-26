@@ -24,6 +24,7 @@ function playerTelem(s: PlayerState): TelemetryT {
   return {
     bpm: s.bpm, beat_flash: s.beat_flash, brightness: s.brightness, level: s.brightness / 100,
     centroid: s.centroid, color: s.color, family: s.family, mode: s.mode, direction: s.direction,
+    mood: s.mood, spectrum: s.spectrum,
   };
 }
 
@@ -38,8 +39,8 @@ export default function App() {
   const [barColors, setBarColors] = useState<string[]>([]);
 
   const [micOn, setMicOn] = useState(false);
+  const [smart, setSmart] = useState(false);
   const [telem, setTelem] = useState<TelemetryT | null>(null);
-  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const hist = useRef<HistPoint[]>([]);
   const playerRef = useRef<PlayerHandle>(null);
 
@@ -110,25 +111,28 @@ export default function App() {
   const onTrackState = useCallback((s: PlayerState) => {
     if (s.loaded) pushTelem(playerTelem(s));
   }, [pushTelem]);
+  const onSmart = useCallback((on: boolean) => {
+    setSmart(on); act("/api/music/config?auto_family=" + on);
+  }, [act]);
 
   return (
     <div className="card">
       <h1>audiolux <span className={"pill " + (connected ? "ok" : "bad")}>{connected ? "connected" : "not connected"}</span></h1>
       <div className="sub">strip: LEDDMX-03-1821 · music-reactive LED control</div>
 
+      <Player ref={playerRef} active={!micOn} smart={smart} onSmart={onSmart}
+              onTrackState={onTrackState} onPlayingChange={onPlaying} />
+
+      {telem && (
+        <Telemetry telem={telem} hist={hist.current} colorHex={colorHex}
+                   barColors={barColors} num2name={num2name} />
+      )}
+
       <div className="cols">
         <PowerColor act={act} />
         <Effects act={act} groups={groups} />
         <MusicEngine act={act} families={families} micOn={micOn} onMicChange={setMicOn} />
       </div>
-
-      <Player ref={playerRef} active={!micOn} onTrackState={onTrackState}
-              onPlayingChange={onPlaying} onAnalyser={setAnalyser} />
-
-      {telem && (
-        <Telemetry telem={telem} hist={hist.current} colorHex={colorHex}
-                   barColors={barColors} num2name={num2name} analyser={micOn ? null : analyser} />
-      )}
 
       <Soundboard act={act} />
       <CommandRate cmds={cmds} />

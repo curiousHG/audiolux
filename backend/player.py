@@ -39,6 +39,8 @@ class PlayerEngine:
         self.brightness_val = 0
         self.speed_val = 0
         self.centroid = 0.0
+        self.mood = 0
+        self.spectrum = []
         self.beat_flash = 0.0
         self._last_bright = -1
         self._last_speed = -1
@@ -70,6 +72,8 @@ class PlayerEngine:
         self.color_code = M.FREQ_COLORS[self.tl["color"][i]]
         self.centroid = self.tl["centroid"][i]
         self.dir_forward = bool(self.tl["dir"][i])
+        self.mood = self.tl.get("mood", [0])[i] if self.tl.get("mood") else 0
+        self.spectrum = self.tl.get("spec", [[]])[i] if self.tl.get("spec") else []
 
         beats = self.tl["beats"]
         bc = bisect.bisect_right(beats, t)
@@ -101,12 +105,17 @@ class PlayerEngine:
                 self._last_speed = sp
                 await self._safe(self.c.send(P.speed(sp), critical=False))
 
-        if cfg["switch_modes"]:
-            fams = [f for f in self.engine.active_families if f in self.catalog]
-            if fams and bc - self._last_switch_beat >= cfg["beats_per_switch"]:
+        if cfg["switch_modes"] and bc - self._last_switch_beat >= cfg["beats_per_switch"]:
+            fam = None
+            if cfg.get("auto_family"):
+                fam = M.mood_family(self.catalog, self.mood)   # smart: pick by music character
+            else:
+                fams = [f for f in self.engine.active_families if f in self.catalog]
+                if fams:
+                    self._fam_idx = (self._fam_idx + 1) % len(fams)
+                    fam = fams[self._fam_idx]
+            if fam:
                 self._last_switch_beat = bc
-                self._fam_idx = (self._fam_idx + 1) % len(fams)
-                fam = fams[self._fam_idx]
                 n = M.pick_mode(self.catalog, fam, self.color_code,
                                 self.dir_forward, cfg["use_direction"])
                 if n:
@@ -141,4 +150,6 @@ class PlayerEngine:
             "family": self.cur_family,
             "mode": self.cur_mode,
             "direction": "fwd" if self.dir_forward else "bwd",
+            "mood": M.MOOD_NAMES[self.mood] if self.loaded else None,
+            "spectrum": self.spectrum,
         }

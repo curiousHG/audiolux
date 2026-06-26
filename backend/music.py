@@ -45,6 +45,7 @@ class MusicEngine:
             "beats_per_switch": 4,
             "bright_floor": 12,
             "smooth": 0.4,
+            "auto_family": False,     # track player: pick family by music character (mood)
         }
 
         # --- beat-detection FFT: short window = good TIME resolution ---

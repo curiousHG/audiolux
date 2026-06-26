@@ -38,6 +38,20 @@ def _timeline_path(vid: str) -> str:
     return os.path.join(ytsource.CACHE_DIR, f"{vid}.json")
 
 
+def _cached_timeline(vid: str):
+    """Return a cached timeline only if it exists AND matches the current schema
+    version (else None, so it gets re-analysed)."""
+    p = _timeline_path(vid)
+    if not os.path.exists(p):
+        return None
+    try:
+        with open(p) as f:
+            tl = json.load(f)
+        return tl if tl.get("version") == analysis.VERSION else None
+    except Exception:
+        return None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     asyncio.create_task(asyncio.to_thread(analysis.warmup))   # JIT librosa in the background
@@ -126,11 +140,11 @@ async def music_config(react_bright: bool = None, react_speed: bool = None,
                        switch_modes: bool = None, use_direction: bool = None,
                        sensitivity: float = None, beats_per_switch: int = None,
                        bright_floor: int = None, smooth: float = None,
-                       families: str = None):
+                       auto_family: bool = None, families: str = None):
     engine.configure(react_bright=react_bright, react_speed=react_speed,
                      switch_modes=switch_modes, use_direction=use_direction,
                      sensitivity=sensitivity, beats_per_switch=beats_per_switch,
-                     bright_floor=bright_floor, smooth=smooth)
+                     bright_floor=bright_floor, smooth=smooth, auto_family=auto_family)
     if families is not None:
         engine.set_families([f for f in families.split(",") if f])
     return {"ok": True, "cfg": engine.cfg, "active_families": engine.active_families}
@@ -166,10 +180,8 @@ async def _prepare(vid: str, title: str, dur: int):
         await asyncio.to_thread(ytsource.download, vid, prog)
 
         job["state"], job["progress"] = "analyzing", 1.0
-        if os.path.exists(tlp):
-            with open(tlp) as f:
-                tl = json.load(f)
-        else:
+        tl = _cached_timeline(vid)
+        if tl is None:
             tl = await asyncio.to_thread(analysis.analyze, ytsource.audio_path(vid))
             with open(tlp, "w") as f:
                 json.dump(tl, f)
@@ -183,10 +195,9 @@ async def _prepare(vid: str, title: str, dur: int):
 
 @app.get("/api/yt/load")
 async def yt_load(id: str, title: str = "", dur: int = 0):
-    # fully cached -> ready immediately
-    if os.path.exists(_timeline_path(id)) and ytsource.is_cached(id):
-        with open(_timeline_path(id)) as f:
-            tl = json.load(f)
+    # fully cached (current schema) -> ready immediately
+    tl = _cached_timeline(id) if ytsource.is_cached(id) else None
+    if tl is not None:
         track = {"id": id, "title": title or id, "uploader": "", "duration": dur or tl["duration"]}
         player.load(track, tl)
         jobs[id] = {"state": "ready", "progress": 1.0, "track": track}

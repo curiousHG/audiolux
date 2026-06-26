@@ -66,6 +66,8 @@ export interface PlayerState {
   family: string | null;
   mode: number | null;
   direction: "fwd" | "bwd";
+  mood: string | null;
+  spectrum: number[];
 }
 
 export interface SearchResult {
@@ -108,6 +110,7 @@ export interface Telemetry {
   mode: number | null;
   direction: "fwd" | "bwd";
   C?: number;
+  mood?: string | null;
   spectrum?: number[];
 }
 

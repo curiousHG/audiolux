@@ -100,6 +100,27 @@ def build_family_catalog(grouped):
     return cat
 
 
+# Music character ("mood") -> families that suit it, most-preferred first. The
+# player auto-picks from these when "smart mode" is on, based on the track's
+# energy + percussiveness + timbre at each moment.
+MOOD_NAMES = ["calm", "groove", "drive", "peak"]
+MOOD_FAMILIES = {
+    0: ["Dreaming", "Trailing", "Curtain", "Flow"],        # calm / ambient / sustained
+    1: ["Flow", "Streaming", "Trailing", "Run"],           # groove / melodic mid-energy
+    2: ["Run", "Horse Race", "Hop", "Streaming"],          # drive / percussive high-energy
+    3: ["Strobe", "Run", "Hop", "Horse Race"],             # peak / drop / very high energy
+}
+
+
+def mood_family(catalog, mood):
+    """Best available family for a mood index — the first preferred family that
+    exists in the catalog."""
+    for f in MOOD_FAMILIES.get(mood, []):
+        if f in catalog:
+            return f
+    return next((f for f in catalog if f != "Auto"), None)
+
+
 def pick_mode(catalog, fam, color_code, forward=True, use_direction=True):
     """Mode number for a colour variant in `fam`, honouring direction.
     Falls back to the family's '7 Colors'/first variant when the exact colour or a

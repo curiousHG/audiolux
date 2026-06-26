@@ -19,6 +19,9 @@ SR = 22050
 NFFT = 2048
 HOP = 1024                 # ~21.5 fps at 22050 Hz — plenty for smooth light control
 DB_FLOOR = -45.0           # dB below the track's 95th-pct level = brightness 0
+NBARS = 40                 # spectrum bars; same log layout as the mic engine so colours align
+BAR_EDGES = np.logspace(np.log10(30), np.log10(16000), NBARS + 1)
+VERSION = 2                # bump when the timeline schema changes (forces re-analysis)
 
 
 def _ema(x, a):
@@ -54,6 +57,24 @@ def _color_track(bands_norm):
         if ce.max() > 1e-3:
             cur = int(np.argmax(ce))
         out[t] = cur
+    return out
+
+
+def _mood_track(bright, pfrac):
+    """Classify each frame's musical character from energy + percussiveness:
+    0 calm, 1 groove, 2 drive, 3 peak. Drives smart family selection."""
+    T = len(bright)
+    out = np.zeros(T, dtype=np.int8)
+    for t in range(T):
+        e, p = bright[t], pfrac[t]
+        if e > 0.75 and p > 0.45:
+            out[t] = 3
+        elif e > 0.52:
+            out[t] = 2
+        elif e > 0.28:
+            out[t] = 1
+        else:
+            out[t] = 0
     return out
 
 
@@ -99,6 +120,23 @@ def analyze(path: str) -> dict:
     lo, hi = np.log10(30), np.log10(16000)
     centroid = np.clip((np.log10(np.maximum(cen, 30)) - lo) / (hi - lo), 0.0, 1.0)
 
+    # --- spectrum bars (40, log) for the visualiser, normalised to the song ---
+    sidx = np.searchsorted(freqs, BAR_EDGES)
+    specbars = np.zeros((NBARS, T))
+    for i in range(NBARS):
+        a, b = sidx[i], sidx[i + 1]
+        if b > a:
+            specbars[i] = S[a:b].mean(axis=0)
+    pos = specbars[specbars > 0]
+    ref_s = (float(np.percentile(pos, 99)) + 1e-9) if pos.size else 1.0
+    specbars = np.clip(specbars / ref_s, 0, 1) ** 0.6          # gamma lift for visibility
+
+    # --- percussiveness (HPSS) + mood ---
+    H, Pp = librosa.decompose.hpss(S)
+    he, pe = H.sum(axis=0), Pp.sum(axis=0)
+    pfrac = _smooth(pe / (he + pe + 1e-9), 9)
+    mood = _mood_track(bright, pfrac)
+
     # --- direction: build vs release ---
     slow = _ema(bright, 0.02)
     direction = _direction_track(bright, slow)
@@ -112,7 +150,7 @@ def analyze(path: str) -> dict:
     bpm = float(np.atleast_1d(tempo)[0])
 
     return {
-        "version": 1,
+        "version": VERSION,
         "sr": sr,
         "duration": round(float(duration), 2),
         "bpm": round(bpm, 1),
@@ -123,6 +161,8 @@ def analyze(path: str) -> dict:
         "color": [int(c) for c in color_idx],
         "centroid": [round(float(v), 3) for v in centroid],
         "dir": [int(d) for d in direction],
+        "mood": [int(m) for m in mood],
+        "spec": [[round(float(v), 2) for v in specbars[:, t]] for t in range(T)],
     }
 
 
@@ -134,5 +174,7 @@ def warmup():
     S = np.abs(librosa.stft(y, n_fft=NFFT, hop_length=HOP))
     librosa.feature.rms(S=S, frame_length=NFFT, hop_length=HOP)
     librosa.feature.spectral_centroid(S=S, sr=SR)
+    librosa.feature.spectral_centroid(S=S, sr=SR)
+    librosa.decompose.hpss(S)
     oenv = librosa.onset.onset_strength(y=y, sr=SR, hop_length=HOP)
     librosa.beat.beat_track(onset_envelope=oenv, sr=SR, hop_length=HOP, units="time")

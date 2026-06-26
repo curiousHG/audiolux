@@ -9,7 +9,6 @@ interface Props {
   colorHex: Record<string, string>;
   barColors: string[];
   num2name: Record<number, string>;
-  analyser: AnalyserNode | null;
 }
 
 function fit(c: HTMLCanvasElement): [CanvasRenderingContext2D, number, number] {
@@ -39,42 +38,16 @@ function lineSeries(x: CanvasRenderingContext2D, hist: HistPoint[], key: keyof H
   x.stroke();
 }
 
-export default function Telemetry({ telem, hist, colorHex, barColors, num2name, analyser }: Props) {
+export default function Telemetry({ telem, hist, colorHex, barColors, num2name }: Props) {
   const spec = useRef<HTMLCanvasElement>(null);
   const lb = useRef<HTMLCanvasElement>(null);
   const col = useRef<HTMLCanvasElement>(null);
 
-  // spectrum: live WebAudio analyser during playback, else the mic engine's bars
+  // spectrum bars come from the backend (precomputed timeline for tracks, live
+  // analysis for the mic) — consistent scaling + colours either way
   useEffect(() => {
-    if (!analyser) return;
-    let raf = 0;
-    const bins = analyser.frequencyBinCount;
-    const data = new Uint8Array(bins);
-    const sr = analyser.context.sampleRate;
-    const N = 40, edges: number[] = [];
-    for (let i = 0; i <= N; i++) edges.push(30 * Math.pow(16000 / 30, i / N));
-    const ranges = edges.slice(0, N).map((lo, i) => {
-      const hi = edges[i + 1];
-      return [Math.floor((lo / (sr / 2)) * bins), Math.max(1, Math.ceil((hi / (sr / 2)) * bins))];
-    });
-    const tick = () => {
-      analyser.getByteFrequencyData(data);
-      const vals = ranges.map(([a, b]) => {
-        let s = 0, n = 0;
-        for (let i = a; i < b && i < bins; i++) { s += data[i]; n++; }
-        return n ? (s / n / 255) * 1.4 : 0;
-      });
-      if (spec.current) drawBars(spec.current, vals, barColors);
-      raf = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => cancelAnimationFrame(raf);
-  }, [analyser, barColors]);
-
-  useEffect(() => {
-    if (analyser) return;             // analyser path owns the canvas
     if (spec.current && telem?.spectrum) drawBars(spec.current, telem.spectrum, barColors);
-  }, [telem, analyser, barColors]);
+  }, [telem, barColors]);
 
   // loudness -> brightness, and frequency -> colour, both from history
   useEffect(() => {
@@ -110,6 +83,7 @@ export default function Telemetry({ telem, hist, colorHex, barColors, num2name, 
         <div className="ro"><span>BPM</span><b>{t && t.bpm > 0 ? t.bpm : "—"}</b></div>
         <div className="ro"><span>Beat</span><b><i className="beatDot" style={{ background: beatOn ? "#57d090" : "#2a3142", transform: `scale(${1 + (t?.beat_flash || 0) * 0.6})` }} /></b></div>
         {t?.C != null && <div className="ro"><span>Threshold C</span><b>{t.C}</b></div>}
+        {t?.mood != null && <div className="ro"><span>Mood</span><b>{t.mood}</b></div>}
         <div className="ro"><span>Colour</span><b><i className="colDot" style={{ background: colorHex[t?.color || ""] || "#2a3142" }} />{t?.color || "—"}</b></div>
         <div className="ro fam"><span>Family</span><b>{t?.family || "—"}</b></div>
         <div className="ro mode"><span>Effect</span><b>{t?.mode ? (num2name[t.mode] || "#" + t.mode) : "—"}</b></div>
