@@ -62,11 +62,21 @@ def build_plan(catalog, timeline, cfg, active_families):
         if not num:
             continue
         segments.append({**seg, "kind": "mode", "family": fam, "mode": num,
-                         "color": M.label_color(label) or mc})
+                         "color": M.label_color(label) or mc, "fwd": bool(fwd or not use_dir)})
+
+    # direction markers — where the COMMITTED direction actually flips (mode
+    # segments only; the strip only changes direction at a mode switch)
+    dir_marks, last_fwd = [], None
+    for s in segments:
+        if s["kind"] != "mode":
+            continue
+        if last_fwd is not None and s["fwd"] != last_fwd:
+            dir_marks.append({"t": s["t0"], "fwd": s["fwd"]})
+        last_fwd = s["fwd"]
 
     # y-axis order: catalog families that appear, then the Colour Strobe lane last
     fam_order = [f for f in catalog if any(s["family"] == f for s in segments)]
     if any(s["family"] == "Colour Strobe" for s in segments):
         fam_order.append("Colour Strobe")
     return {"duration": dur, "bpm": timeline.get("bpm", 0),
-            "segments": segments, "families": fam_order}
+            "segments": segments, "families": fam_order, "dir_marks": dir_marks}

@@ -139,6 +139,7 @@ export interface Plan {
   level: number[];
   scolor: string[];
   bpm_curve: number[];
+  bright_floor: number;
   dir_marks: { t: number; fwd: boolean }[];
   freq_colors: string[];
 }

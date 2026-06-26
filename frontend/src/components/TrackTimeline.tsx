@@ -162,7 +162,8 @@ function Chart({ plan, pos, colorHex, onSeek, width }: Props & { width: number }
           {/* mode line + dots */}
           {modeSegs.map((s, k) => {
             const next = modeSegs[k + 1];
-            return next && next.t0 < winEnd && s.t1 > winStart ? (
+            // only connect temporally-adjacent modes (no line across a strobe gap)
+            return next && next.t0 - s.t1 < 0.4 && next.t0 < winEnd && s.t1 > winStart ? (
               <line key={"c" + k} x1={x(Math.min(s.t1, winEnd))} y1={yMode(s.mode!)} x2={x(Math.max(next.t0, winStart))} y2={yMode(next.mode!)} stroke="#ffffff22" strokeWidth={1} />
             ) : null;
           })}

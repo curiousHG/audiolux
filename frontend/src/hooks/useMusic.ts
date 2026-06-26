@@ -81,7 +81,7 @@ export function useMusic(act: (u: string) => void) {
       try {
         const p = await get<Plan>("/api/player/plan");
         if (!p.loaded) return;
-        const s = `${p.segments.length}|${p.families.join()}|${p.segments[0]?.mode}|${p.bpm}`;
+        const s = `${p.segments.length}|${p.families.join()}|${p.segments[0]?.mode}|${p.bpm}|${p.bright_floor}|${p.dir_marks.length}`;
         if (s !== sig) { sig = s; setPlan(p); }
       } catch { /* ignore */ }
     };

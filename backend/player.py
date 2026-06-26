@@ -109,28 +109,24 @@ class PlayerEngine:
             return -1
         return max(0, bisect.bisect_right(self._plan_t0, t) - 1)
 
-    def signals(self, n=800):
-        """Downsampled full-song brightness + colour arrays, plus the times at which
-        the effect direction flips, for the timeline view. (Denser colour so the
-        per-frame strobe variation is visible.)"""
+    def signals(self, n=2200):
+        """Downsampled full-song brightness + colour arrays for the timeline view.
+        Sampled densely (~8/s) so the graph tracks the per-frame brightness and the
+        per-frame strobe colour closely — a truthful representation of what's sent."""
         bright, colors, dt = self.tl["bright"], self.tl["color"], self.tl["dt"]
         bpmc = self.tl.get("bpm_curve") or []
+        cfg = self.engine.cfg
+        # the ACTUAL brightness sent: floor + bright·(100−floor), as a 0..1 fraction
+        fl = (cfg["bright_floor"] / 100.0) if cfg.get("react_bright", True) else 0.0
         m = len(bright)
         step = max(1, m // n)
         idx = range(0, m, step)
-        dirs = self.tl.get("dir") or []
-        marks, last = [], None
-        for i, d in enumerate(dirs):
-            if d != last:
-                if last is not None:                 # skip the initial state, only flips
-                    marks.append({"t": round(i * dt, 2), "fwd": bool(d)})
-                last = d
         return {
             "sig_t": [round(i * dt, 2) for i in idx],
-            "level": [round(bright[i], 3) for i in idx],
+            "level": [round(fl + bright[i] * (1 - fl), 3) for i in idx],
             "scolor": [M.FREQ_COLORS[colors[i]] for i in idx],
             "bpm_curve": [bpmc[i] for i in idx] if bpmc else [],
-            "dir_marks": marks,
+            "bright_floor": cfg["bright_floor"],
             "freq_colors": M.FREQ_COLORS,
         }
 
