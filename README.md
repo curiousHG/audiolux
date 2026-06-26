@@ -47,12 +47,19 @@ cd frontend && npm install && npm run build && cd ..
 uv run audiolux            # http://localhost:8765
 ```
 
-### Development (instant reload)
+### Development (auto-reload, one URL)
 
 ```sh
-make dev-api        # FastAPI with hot-reload on :8765   (terminal 1)
-make dev-web        # Vite HMR on :5173, proxies /api+/media -> :8765   (terminal 2)
+make dev            # http://localhost:8765
 ```
+
+- **Backend** hot-reloads on any `backend/*.py` change (uvicorn `reload=True`, like
+  Django's `runserver`) — no restart needed.
+- **Frontend** `dist/` auto-rebuilds on save (`vite build --watch`) — just reload
+  the browser to see changes.
+
+Prefer instant HMR (no manual reload) on a separate port? `make dev-web` runs the
+Vite dev server on :5173 (proxying `/api`+`/media` to :8765); pair it with `make dev-api`.
 
 ### Tests
 
