@@ -18,6 +18,9 @@ interface Props {
 
 type LoadState = "idle" | "starting" | "downloading" | "analyzing" | "ready" | "error";
 
+// preloaded automatically on every refresh
+const DEFAULT_TRACK = { id: "FNdC_3LR2AI", title: "Gojira - Stranded", duration: 273 };
+
 // Load the YouTube IFrame API once, shared across the app.
 let ytPromise: Promise<any> | null = null;
 function loadYT(): Promise<any> {
@@ -67,15 +70,15 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
     }
   }
 
-  async function choose(r: SearchResult) {
-    setActiveId(r.id); setShowResults(false); setErr(""); setLoad("starting"); setProgress(0);
+  async function loadTrack(id: string, title: string, dur: number) {
+    setActiveId(id); setShowResults(false); setErr(""); setLoad("starting"); setProgress(0);
     setAnalysisReady(false); played.current = false;
     yt.current?.pauseVideo?.();
-    setVideoId(r.id);                          // cue the video (paused) — plays once ready
+    setVideoId(id);                            // cue the video (paused) — plays once ready
     // download + offline analysis on the backend; playback waits for it
-    await get(`/api/yt/load?id=${r.id}&title=${encodeURIComponent(r.title)}&dur=${r.duration}`);
+    await get(`/api/yt/load?id=${id}&title=${encodeURIComponent(title)}&dur=${dur}`);
     const poll = async () => {
-      const s = await get<any>("/api/yt/status?id=" + r.id);
+      const s = await get<any>("/api/yt/status?id=" + id);
       setLoad(s.state); setProgress(s.progress || 0);
       if (s.state === "error") setErr(s.error || "failed");
       else if (s.state === "ready") setAnalysisReady(true);
@@ -83,6 +86,16 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
     };
     poll();
   }
+  const choose = (r: SearchResult) => loadTrack(r.id, r.title, r.duration);
+
+  // always preload a default track (Gojira – Stranded) on refresh
+  const preloaded = useRef(false);
+  useEffect(() => {
+    if (preloaded.current) return;
+    preloaded.current = true;
+    loadTrack(DEFAULT_TRACK.id, DEFAULT_TRACK.title, DEFAULT_TRACK.duration);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // (re)point the YT player at the chosen video — CUE only (paused), don't autoplay
   useEffect(() => {
