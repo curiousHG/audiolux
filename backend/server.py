@@ -14,6 +14,7 @@ from backend.logging_config import get_logger, setup_logging
 
 
 def main():
+    """Start the uvicorn server (optionally opening a browser when not reloading)."""
     setup_logging()
     log = get_logger("server")
     url = "http://localhost:8765"

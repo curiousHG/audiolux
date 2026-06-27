@@ -12,14 +12,16 @@ os.makedirs(CONFIG_DIR, exist_ok=True)
 
 
 def current() -> dict:
+    """Snapshot the live params, engine cfg, and selected families as a config dict."""
     return {
-        "params": {k: v["value"] for k, v in params.PARAMS.items()},
+        "params": {name: p.value for name, p in params.PARAMS.items()},
         "cfg": dict(engine.cfg),
         "families": list(engine.active_families),
     }
 
 
 def apply(data: dict):
+    """Apply a saved config dict back onto the live params, engine cfg, and families."""
     for k, v in (data.get("params") or {}).items():
         params.set_value(k, v)
     engine.configure(**{k: v for k, v in (data.get("cfg") or {}).items() if k in engine.cfg})
@@ -28,27 +30,31 @@ def apply(data: dict):
 
 
 def save(name: str, data: dict):
+    """Write a config dict to configs/<name>.json."""
     with open(os.path.join(CONFIG_DIR, f"{name}.json"), "w") as f:
         json.dump(data, f, indent=2)
 
 
 def load(name: str):
-    p = os.path.join(CONFIG_DIR, f"{name}.json")
-    if not os.path.exists(p):
+    """Read configs/<name>.json, or None if it doesn't exist."""
+    config_path = os.path.join(CONFIG_DIR, f"{name}.json")
+    if not os.path.exists(config_path):
         return None
-    with open(p) as f:
+    with open(config_path) as f:
         return json.load(f)
 
 
 def delete(name: str):
-    p = os.path.join(CONFIG_DIR, f"{name}.json")
-    if os.path.exists(p):
-        os.remove(p)
+    """Remove configs/<name>.json if present."""
+    config_path = os.path.join(CONFIG_DIR, f"{name}.json")
+    if os.path.exists(config_path):
+        os.remove(config_path)
 
 
 def names() -> list:
+    """List saved config names (sorted, without the .json suffix)."""
     return sorted(f[:-5] for f in os.listdir(CONFIG_DIR) if f.endswith(".json"))
 
 
-# factory snapshot, captured once at import (params + cfg are at their defaults here)
+# factory snapshot, captured at import while params/cfg are still at defaults
 DEFAULTS = current()

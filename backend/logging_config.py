@@ -6,6 +6,7 @@ _CONFIGURED = False
 
 
 def setup_logging():
+    """Configure root logging once and return the 'audiolux' logger."""
     global _CONFIGURED
     if _CONFIGURED:
         return logging.getLogger("audiolux")
@@ -23,4 +24,5 @@ def setup_logging():
 
 
 def get_logger(name: str) -> logging.Logger:
+    """Return a namespaced child logger under 'audiolux'."""
     return logging.getLogger(f"audiolux.{name}")

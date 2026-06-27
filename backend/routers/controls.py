@@ -19,51 +19,61 @@ async def _do(coro, **extra):
 
 @router.get("/api/state")
 async def state():
+    """Current connection status plus command, music, and player state."""
     return {"ok": True, "connected": controller.connected,
             "cmds": controller.stats(), "music": engine.state(), "player": player.state()}
 
 
 @router.get("/api/modes")
 async def modes():
+    """Available strip modes grouped by category."""
     return {"ok": True, "groups": GROUPED}
 
 
 @router.get("/api/families")
 async def families():
+    """Selectable mode families plus the colour/frequency mapping metadata."""
     return {"ok": True, "families": FAMILIES, "freq_colors": M.FREQ_COLORS,
-            "color_hex": M.COLOR_HEX, "bar_colors": engine.bar_colors}
+            "color_hex": M.COLOR_HEX, "bar_colors": engine.bar_colors,
+            "bar_freqs": [round(float(f)) for f in engine.bar_center]}
 
 
 @router.get("/api/power")
 async def power(on: int = 1):
+    """Turn the strip on or off."""
     return await _do(controller.power(bool(on)), sent=f"power {'on' if on else 'off'}")
 
 
 @router.get("/api/color")
 async def color(hex: str):
-    h = hex.lstrip("#")
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    """Set a solid colour from a hex string (powers the strip on first)."""
+    hex_digits = hex.lstrip("#")
+    r, g, b = int(hex_digits[0:2], 16), int(hex_digits[2:4], 16), int(hex_digits[4:6], 16)
     await controller.power(True)
     return await _do(controller.color(r, g, b), sent=f"color {r},{g},{b}")
 
 
 @router.get("/api/bright")
 async def bright(v: int):
+    """Set the strip brightness."""
     return await _do(controller.brightness(v), sent=f"brightness {v}")
 
 
 @router.get("/api/speed")
 async def speed(v: int):
+    """Set the built-in animation speed."""
     return await _do(controller.speed(v), sent=f"speed {v}")
 
 
 @router.get("/api/mode")
 async def mode(m: int):
+    """Switch to a built-in strip mode by index."""
     return await _do(controller.mode(m), sent=f"mode {m}")
 
 
 @router.get("/api/benchmark")
 async def benchmark(n: int = 120):
+    """Run a throughput benchmark of n commands against the strip."""
     try:
         return {"ok": True, **(await controller.benchmark(n))}
     except Exception as e:
@@ -72,5 +82,6 @@ async def benchmark(n: int = 120):
 
 @router.get("/api/maxrate")
 async def maxrate(r: float):
+    """Cap the controller's max command rate (commands per second)."""
     controller.set_max_rate(r)
     return {"ok": True, "max_rate": controller.max_rate}

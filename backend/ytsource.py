@@ -15,28 +15,30 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 
 
 def audio_path(vid: str) -> str:
+    """Return the cache path for a video id's transcoded mp3."""
     return os.path.join(CACHE_DIR, f"{vid}.mp3")
 
 
 def is_cached(vid: str) -> bool:
-    p = audio_path(vid)
-    return os.path.exists(p) and os.path.getsize(p) > 0
+    """True if a non-empty cached mp3 already exists for `vid`."""
+    path = audio_path(vid)
+    return os.path.exists(path) and os.path.getsize(path) > 0
 
 
 def search(query: str, n: int = 12) -> list[dict]:
     """Flat YouTube search — fast, metadata only (no download)."""
     opts = {"quiet": True, "no_warnings": True, "extract_flat": True, "skip_download": True}
-    with yt_dlp.YoutubeDL(opts) as y:
-        info = y.extract_info(f"ytsearch{n}:{query}", download=False)
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(f"ytsearch{n}:{query}", download=False)
     out = []
-    for e in info.get("entries", []) or []:
-        if not e or not e.get("id"):
+    for entry in info.get("entries", []) or []:
+        if not entry or not entry.get("id"):
             continue
         out.append({
-            "id": e["id"],
-            "title": e.get("title") or "(untitled)",
-            "uploader": e.get("uploader") or e.get("channel") or "",
-            "duration": int(e.get("duration") or 0),
+            "id": entry["id"],
+            "title": entry.get("title") or "(untitled)",
+            "uploader": entry.get("uploader") or entry.get("channel") or "",
+            "duration": int(entry.get("duration") or 0),
         })
     return out
 
@@ -51,16 +53,17 @@ def download(vid: str, progress_cb=None) -> str:
             progress_cb(1.0)
         return dst
 
-    def _hook(d):
+    def _hook(status):
+        """yt-dlp progress hook: map download/finish events onto progress_cb."""
         if not progress_cb:
             return
-        if d["status"] == "downloading":
-            total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
-            done = d.get("downloaded_bytes") or 0
+        if status["status"] == "downloading":
+            total = status.get("total_bytes") or status.get("total_bytes_estimate") or 0
+            done = status.get("downloaded_bytes") or 0
             if total:
                 progress_cb(min(0.95, done / total))
-        elif d["status"] == "finished":
-            progress_cb(0.97)            # transcode still to come
+        elif status["status"] == "finished":
+            progress_cb(0.97)            # leave headroom for transcode
 
     opts = {
         "quiet": True, "no_warnings": True,
@@ -71,8 +74,8 @@ def download(vid: str, progress_cb=None) -> str:
                             "preferredcodec": "mp3", "preferredquality": "192"}],
         "noplaylist": True,
     }
-    with yt_dlp.YoutubeDL(opts) as y:
-        y.download([f"https://www.youtube.com/watch?v={vid}"])
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        ydl.download([f"https://www.youtube.com/watch?v={vid}"])
     if progress_cb:
         progress_cb(1.0)
     return dst
@@ -81,7 +84,7 @@ def download(vid: str, progress_cb=None) -> str:
 def meta(vid: str) -> dict:
     """Full metadata for one video (title/duration) — used after a search pick."""
     opts = {"quiet": True, "no_warnings": True, "skip_download": True}
-    with yt_dlp.YoutubeDL(opts) as y:
-        info = y.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False)
+    with yt_dlp.YoutubeDL(opts) as ydl:
+        info = ydl.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False)
     return {"id": vid, "title": info.get("title") or vid,
             "uploader": info.get("uploader") or "", "duration": int(info.get("duration") or 0)}

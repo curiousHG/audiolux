@@ -21,11 +21,12 @@ log = get_logger("app")
 _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC_DIR = os.path.join(_HERE, "static")
 DIST_DIR = os.path.join(_HERE, "frontend", "dist")
-# serve the built React app when present, else the legacy static/ folder
+# built React app if present, else legacy static/ folder
 FRONTEND_DIR = DIST_DIR if os.path.exists(os.path.join(DIST_DIR, "index.html")) else STATIC_DIR
 
 
 async def _warmup():
+    """Pre-JIT librosa/numba off the event loop so the first analysis is fast."""
     log.info("warming up librosa (numba JIT)…")
     await asyncio.to_thread(analysis.warmup)
     log.info("librosa warmup complete — first track will analyse fast")
@@ -33,6 +34,7 @@ async def _warmup():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Startup/shutdown: kick off warmup, then stop engine + disconnect on exit."""
     log.info("serving frontend from %s", os.path.relpath(FRONTEND_DIR, _HERE))
     asyncio.create_task(_warmup())
     yield
@@ -48,6 +50,6 @@ app.include_router(music.router)
 app.include_router(tracks.router)
 app.include_router(settings.router)
 
-# static media + frontend (mounted last so /api/* wins)
+# mounted last so /api/* routes win
 app.mount("/media", StaticFiles(directory=ytsource.CACHE_DIR), name="media")
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="root")

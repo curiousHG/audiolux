@@ -21,31 +21,35 @@ class LedController:
         self._dropped = 0
         self._stamps = collections.deque(maxlen=4000)
         self._last_send_t = 0.0
-        self.max_rate = 14.0                 # non-critical commands/sec ceiling
+        self.max_rate = 14.0
 
     @property
     def connected(self) -> bool:
+        """True if a client exists and its BLE link is currently up."""
         return bool(self._client and self._client.is_connected)
 
     def set_max_rate(self, r):
+        """Set the non-critical command rate ceiling (clamped to >= 1.0/sec)."""
         self.max_rate = max(1.0, float(r))
 
     def stats(self, window: float = 20.0, bucket: float = 0.5):
+        """Return command telemetry plus a recent send-rate histogram."""
         now = time.monotonic()
         while self._stamps and now - self._stamps[0] > window:
             self._stamps.popleft()
-        nb = int(window / bucket)
-        hist = [0] * nb
-        for t in self._stamps:
-            i = int((now - t) / bucket)
-            if 0 <= i < nb:
-                hist[i] += 1
-        hist.reverse()
-        rate = sum(1 for t in self._stamps if now - t <= 1.0)
+        n_buckets = int(window / bucket)
+        histogram = [0] * n_buckets
+        for stamp in self._stamps:
+            bucket_idx = int((now - stamp) / bucket)
+            if 0 <= bucket_idx < n_buckets:
+                histogram[bucket_idx] += 1
+        histogram.reverse()
+        rate = sum(1 for stamp in self._stamps if now - stamp <= 1.0)
         return {"total": self._count, "dropped": self._dropped, "rate": rate,
-                "hist": hist, "bucket": bucket, "max_rate": self.max_rate}
+                "hist": histogram, "bucket": bucket, "max_rate": self.max_rate}
 
     async def _reset(self):
+        """Disconnect (ignoring errors) and clear the cached client."""
         if self._client:
             try:
                 await self._client.disconnect()
@@ -54,6 +58,7 @@ class LedController:
         self._client = None
 
     async def _ensure(self):
+        """Connect to the strip if not already connected (scan + connect)."""
         if self.connected:
             return
         log.info("scanning for %s…", P.TARGET_NAME)
@@ -78,8 +83,8 @@ class LedController:
             await self._client.write_gatt_char(P.CHAR_UUID, payload, response=response)
 
     async def send(self, payload: bytes, critical: bool = True):
+        """Serialized write; non-critical commands over max_rate are dropped."""
         now = time.monotonic()
-        # rate-limit non-critical traffic (brightness/colour/speed); drop the excess
         if not critical and self.max_rate and (now - self._last_send_t) < (1.0 / self.max_rate):
             self._dropped += 1
             return
@@ -98,14 +103,15 @@ class LedController:
             t0 = time.monotonic()
             for _ in range(n):
                 await self._client.write_gatt_char(P.CHAR_UUID, payload, response=True)
-            dt = time.monotonic() - t0
-        result = {"n": n, "seconds": round(dt, 3), "rate": round(n / dt, 1),
-                  "latency_ms": round(dt / n * 1000, 1)}
+            elapsed = time.monotonic() - t0
+        result = {"n": n, "seconds": round(elapsed, 3), "rate": round(n / elapsed, 1),
+                  "latency_ms": round(elapsed / n * 1000, 1)}
         log.info("benchmark: %s cmds in %ss = %s/s (%sms/cmd)",
                  n, result["seconds"], result["rate"], result["latency_ms"])
         return result
 
     async def disconnect(self):
+        """Cleanly close the BLE connection (ignoring teardown errors)."""
         if self._client:
             try:
                 await self._client.disconnect()
@@ -113,7 +119,6 @@ class LedController:
                 pass
             self._client = None
 
-    # --- convenience wrappers (all critical = always delivered) ---
     async def power(self, on):       await self.send(P.power(on))
     async def color(self, r, g, b):  await self.send(P.color(r, g, b))
     async def brightness(self, pct): await self.send(P.brightness(pct))

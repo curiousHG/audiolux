@@ -11,6 +11,7 @@ router = APIRouter(prefix="/api/music")
 
 @router.get("/start")
 async def music_start():
+    """Start the mic-reactive engine (stopping the track player first)."""
     try:
         await player.stop()                 # only one source drives the strip
         engine.start(asyncio.get_running_loop())
@@ -21,6 +22,7 @@ async def music_start():
 
 @router.get("/stop")
 async def music_stop():
+    """Stop the mic-reactive engine."""
     await engine.stop()
     return {"ok": True, "sent": "music off"}
 
@@ -31,6 +33,7 @@ async def music_config(react_bright: bool = None, react_speed: bool = None,
                        sensitivity: float = None, beats_per_switch: int = None,
                        bright_floor: int = None, smooth: float = None,
                        auto_family: bool = None, peak_strobe: bool = None, families: str = None):
+    """Update mic-engine config (only non-None fields) and active families."""
     engine.configure(react_bright=react_bright, react_speed=react_speed,
                      switch_modes=switch_modes, use_direction=use_direction,
                      sensitivity=sensitivity, beats_per_switch=beats_per_switch,
@@ -43,4 +46,5 @@ async def music_config(react_bright: bool = None, react_speed: bool = None,
 
 @router.get("/state")
 async def music_state():
+    """Current mic-engine state."""
     return {"ok": True, **engine.state()}
