@@ -11,11 +11,17 @@ _MODES_FILE = os.path.join(_HERE, "modes_dmx03.json")
 FAMILIES = ["Curtain Swab", "Follow Spot", "Horse Race", "Trailing", "Streaming",
             "Flutter", "Curtain", "Dreaming", "Strobe", "Swab", "Run", "Flow", "Hop"]
 
-# Families that look good reacting to music (dynamic, moving effects).
-DYNAMIC_FAMILIES = {"Run", "Flow", "Trailing", "Streaming", "Dreaming", "Horse Race", "Hop"}
+# Redundant duplicates dropped from the catalog (see docs/MODES.md).
+DROP_FAMILIES = {"Swab", "Follow Spot"}
+
+# Forward variant is broken on the strip — always send Backward.
+FORCE_BACKWARD = {"Horse Race"}
+
+DYNAMIC_FAMILIES = {"Run", "Trailing", "Curtain", "Flow", "Streaming", "Flutter", "Hop"}
 
 
 def load_modes(path: str = _MODES_FILE):
+    """Load the raw effect-mode list from the JSON catalog file."""
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
@@ -25,38 +31,40 @@ def classify(modes):
     (lower = forward/open, higher = backward/close). We pair by number rather than
     the text label because the app's data mislabels some 'Backward' entries as
     'Forward' (e.g. 197 & 198 both say 'Forward Swab CN')."""
-    order, acc = [], {}
-    for m in modes:
-        n, name = m["n"], m["name"]
+    order, groups_accum = [], {}
+    for mode_obj in modes:
+        mode_num, name = mode_obj["n"], mode_obj["name"]
         if name.strip().upper() == "AUTO":
-            fam, base, oc = "Auto", "AUTO", False
+            fam, base, is_open_close = "Auto", "AUTO", False
         else:
-            base, oc = name, False
+            base, is_open_close = name, False
             for p in ("Forward ", "Backward ", "Open ", "Close "):
                 if name.startswith(p):
-                    base, oc = name[len(p):], p in ("Open ", "Close ")
+                    base, is_open_close = name[len(p):], p in ("Open ", "Close ")
                     break
-            fam = next((f for f in FAMILIES if f in base), "Basic")
+            # The 1-22 rainbow-gradient block (and anything unmatched) is the Dreaming family.
+            fam = next((f for f in FAMILIES if f in base), "Dreaming")
         key = (fam, base)
-        if key not in acc:
-            acc[key] = {"fam": fam, "base": base, "nums": [], "oc": False}
+        if key not in groups_accum:
+            groups_accum[key] = {"fam": fam, "base": base, "nums": [], "oc": False}
             order.append(key)
-        acc[key]["nums"].append(n)
-        acc[key]["oc"] = acc[key]["oc"] or oc
+        groups_accum[key]["nums"].append(mode_num)
+        groups_accum[key]["oc"] = groups_accum[key]["oc"] or is_open_close
 
     groups = collections.OrderedDict()
     for key in order:
-        d = acc[key]
-        nums = sorted(set(d["nums"]))
-        eff = {"name": d["base"]}
+        entry = groups_accum[key]
+        nums = sorted(set(entry["nums"]))
+        effect = {"name": entry["base"]}
         if len(nums) == 1:
-            eff["single"] = nums[0]
-        elif d["oc"]:
-            eff["open"], eff["close"] = nums[0], nums[1]
+            effect["single"] = nums[0]
+        elif entry["oc"]:
+            effect["open"], effect["close"] = nums[0], nums[1]
         else:
-            eff["fwd"], eff["bwd"] = nums[0], nums[1]
-        groups.setdefault(d["fam"], []).append(eff)
-    return [{"family": fam, "effects": effs} for fam, effs in groups.items()]
+            effect["fwd"], effect["bwd"] = nums[0], nums[1]
+        groups.setdefault(entry["fam"], []).append(effect)
+    return [{"family": fam, "effects": effs} for fam, effs in groups.items()
+            if fam not in DROP_FAMILIES]
 
 
 def dynamic_pool(grouped, families=None):
@@ -72,11 +80,8 @@ def dynamic_pool(grouped, families=None):
     return pool or [95]
 
 
-# Single colour codes used in effect names.
 SINGLE_COLORS = ["RD", "YE", "GN", "CN", "BU", "VT", "WH"]
-# Frequency -> colour (bass..treble). Following the standard lighting convention:
-# low/bass = warm & deep (red, violet, blue), high/treble = bright & energetic
-# (green, yellow, white).  bass/kick -> red, hi-hats/air -> white.
+# Frequency -> colour (bass..treble): bass/kick = red, hi-hats/air = white.
 FREQ_COLORS = ["RD", "VT", "BU", "GN", "YE", "WH"]
 COLOR_HEX = {"RD": "#ff3030", "YE": "#ffe000", "GN": "#33ff33", "CN": "#00e0ff",
              "BU": "#3060ff", "VT": "#a000ff", "WH": "#ffffff", "7 Colors": "#ff48b0"}
@@ -100,16 +105,14 @@ def build_family_catalog(grouped):
     return cat
 
 
-# Music character ("mood") -> families that suit it, most-preferred first. Only
-# COLOUR-CAPABLE families are listed (Run/Trailing/Curtain/Swab have the full
-# 7-colour set) so the music's colour is always honoured. White-only families
-# like Strobe are NOT auto-picked — they'd ignore the colour and play white.
+# Music mood -> preferred families. Only colour-capable families (Run/Trailing/
+# Curtain) are listed so the music's colour is always honoured.
 MOOD_NAMES = ["calm", "groove", "drive", "peak"]
 MOOD_FAMILIES = {
-    0: ["Trailing", "Curtain", "Swab", "Run"],       # calm / ambient / sustained
-    1: ["Swab", "Trailing", "Run", "Curtain"],        # groove / melodic mid-energy
-    2: ["Run", "Swab", "Curtain", "Trailing"],        # drive / percussive high-energy
-    3: ["Run", "Curtain", "Swab", "Trailing"],        # peak / drop / very high energy
+    0: ["Trailing", "Curtain", "Run"],
+    1: ["Curtain", "Trailing", "Run"],
+    2: ["Run", "Curtain", "Trailing"],
+    3: ["Run", "Curtain", "Trailing"],
 }
 
 
@@ -130,7 +133,7 @@ def mood_family(catalog, mood, color_code=None):
 def label_color(label):
     """Map a catalog variant label to a display colour code, or None when the
     variant has no single colour (e.g. a family-name label)."""
-    if label in COLOR_HEX:                       # 'RD'..'WH', '7 Colors'
+    if label in COLOR_HEX:
         return label
     if label and label.strip().lower() == "white":
         return "WH"
@@ -152,6 +155,8 @@ def resolve_mode(catalog, fam, color_code, forward=True, use_direction=True):
     if not entry:
         return None, None
     fwd = forward or not use_direction
+    if fam in FORCE_BACKWARD:
+        fwd = False
     if "fwd" in entry or "bwd" in entry:
         num = (entry.get("fwd") if fwd else entry.get("bwd")) or entry.get("fwd") or entry.get("bwd")
     elif "open" in entry or "close" in entry:
@@ -174,8 +179,8 @@ def selectable_families(catalog):
     for fam, colors in catalog.items():
         if fam == "Auto":
             continue
-        n = sum(1 for c in SINGLE_COLORS if c in colors)
+        single_count = sum(1 for c in SINGLE_COLORS if c in colors)
         out.append({"family": fam, "colors": [c for c in SINGLE_COLORS if c in colors],
-                    "single": n, "color_react": n >= 4})
+                    "single": single_count, "color_react": single_count >= 4})
     out.sort(key=lambda x: -x["single"])
     return out

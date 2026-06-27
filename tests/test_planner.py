@@ -22,12 +22,12 @@ def test_segments_are_contiguous_and_cover_song(catalog):
 
 
 def test_peak_makes_colored_strobe_segments(catalog):
+    # coloured peak -> software colour strobe (flashes the music colour and dark)
     tl = make_timeline(moods=3, colors=M.FREQ_COLORS.index("RD"), n=160)
     plan = planner.build_plan(catalog, tl, cfg(), ["Run"])
-    kinds = {s["kind"] for s in plan["segments"]}
-    assert kinds == {"strobe"}
+    assert {s["kind"] for s in plan["segments"]} == {"strobe"}
     assert "Colour Strobe" in plan["families"]
-    # strobe disabled -> falls back to colour-capable mode segments, no white Strobe
+    # strobe disabled -> falls back to colour-capable mode segments, no Strobe
     plan2 = planner.build_plan(catalog, tl, cfg(peak_strobe=False), ["Run"])
     assert all(s["kind"] == "mode" for s in plan2["segments"])
     assert "Strobe" not in plan2["families"]

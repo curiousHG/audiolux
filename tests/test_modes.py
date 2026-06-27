@@ -1,7 +1,7 @@
 """Colour <-> mode/family logic — the core of the 'red music, white light' bug."""
 from backend import modes as M
 
-COLOR_CAPABLE = ["Run", "Trailing", "Curtain", "Swab"]
+COLOR_CAPABLE = ["Run", "Trailing", "Curtain"]   # Swab dropped (duplicate of Run)
 
 
 def test_color_capable_families_have_full_color_set(catalog):
