@@ -13,8 +13,8 @@ interface Props {
 
 const WIN = 30;                      // seconds visible at once
 const GUTTER = 88, PADR = 10, TOP = 2;
-const BPM_H = 18, BR_H = 22, COL_H = 9, DIR_H = 11, MODE_H = 24;   // fixed top lanes
-const GAP = 4, GROUP_GAP = 4, AXIS_H = 14, MIN_SUB = 3;
+const BPM_H = 34, BR_H = 44, DIR_H = 12;   // taller BPM + brightness; colour & mode-line lanes removed
+const GAP = 4, GROUP_GAP = 7, AXIS_H = 14, MIN_SUB = 2;   // thinner per-colour sub-lanes, more gap between families
 const OV_H = 30, OV_STRIP = 9;
 
 function useBox() {
@@ -57,10 +57,8 @@ function Lanes({ plan, pos, colorHex, onSeek, width, height }: Props & { width: 
 
   const bpmY = TOP;
   const brY = bpmY + BPM_H + GAP;
-  const colY = brY + BR_H + GAP;
-  const dirY = colY + COL_H + GAP;
-  const modeLineY = dirY + DIR_H + GAP;
-  const modesTop = modeLineY + MODE_H + GAP;
+  const dirY = brY + BR_H + GAP;
+  const modesTop = dirY + DIR_H + GAP;
   const avail = H - modesTop - AXIS_H - GAP - Math.max(0, groups.length - 1) * GROUP_GAP;
   const SUB_H = Math.max(MIN_SUB, avail / Math.max(1, groups.length * nSub));
   const groupH = nSub * SUB_H;
@@ -79,7 +77,6 @@ function Lanes({ plan, pos, colorHex, onSeek, width, height }: Props & { width: 
   const inWin = (i: number) => st[i] >= winStart - 1 && st[i] <= winEnd + 1;
   const segT0 = plan.segments.map((s) => s.t0);
   const segAt = (t: number) => { let lo = 0, hi = segT0.length - 1, idx = 0; while (lo <= hi) { const mid = (lo + hi) >> 1; if (segT0[mid] <= t) { idx = mid; lo = mid + 1; } else hi = mid - 1; } return plan.segments[idx]; };
-  const colourAt = (i: number) => { const s = segAt(st[i]); return s && s.kind === "mode" ? s.color : plan.scolor[i]; };
 
   const bpmVals = bp.filter((v) => v > 0);
   const bMin = bpmVals.length ? Math.min(...bpmVals) - 4 : 60, bMax = bpmVals.length ? Math.max(...bpmVals) + 4 : 180;
@@ -91,11 +88,6 @@ function Lanes({ plan, pos, colorHex, onSeek, width, height }: Props & { width: 
     bpath += `${bpath ? "L" : "M"}${x(st[i]).toFixed(1)} ${(brY + BR_H - lv[i] * (BR_H - 2)).toFixed(1)} `;
     if (bp[i] > 0) bpmPath += `${bpmPath ? "L" : "M"}${x(st[i]).toFixed(1)} ${yBpm(bp[i]).toFixed(1)} `;
   }
-
-  const modeSegs = plan.segments.filter((s) => s.kind === "mode" && s.mode != null);
-  const mm = modeSegs.map((s) => s.mode as number);
-  const mMin = mm.length ? Math.min(...mm) : 1, mMax = mm.length ? Math.max(...mm) : 200;
-  const yMode = (m: number) => modeLineY + MODE_H - 3 - ((m - mMin) / Math.max(1, mMax - mMin)) * (MODE_H - 8);
 
   const winSegs = plan.segments.filter((s) => s.t1 > winStart && s.t0 < winEnd);
   const rlabel = (s: string, y: number, col = "#7b8395") =>
@@ -110,9 +102,7 @@ function Lanes({ plan, pos, colorHex, onSeek, width, height }: Props & { width: 
 
       <rect x={GUTTER} y={bpmY} width={W - PADR - GUTTER} height={BPM_H} fill="#0a0c11" />
       <rect x={GUTTER} y={brY} width={W - PADR - GUTTER} height={BR_H} fill="#0a0c11" />
-      <rect x={GUTTER} y={colY} width={W - PADR - GUTTER} height={COL_H} fill="#0a0c11" />
       <rect x={GUTTER} y={dirY} width={W - PADR - GUTTER} height={DIR_H} fill="#0c0f16" />
-      <rect x={GUTTER} y={modeLineY} width={W - PADR - GUTTER} height={MODE_H} fill="#0a0c11" />
       {groups.map((fam, g) => freq.map((_, ci) => (
         <rect key={`${fam}-${ci}`} x={GUTTER} y={subTop(g, ci)} width={W - PADR - GUTTER} height={SUB_H - 0.5} fill={ci % 2 ? "#0b0e14" : "#0a0c11"} />
       )))}
@@ -122,10 +112,6 @@ function Lanes({ plan, pos, colorHex, onSeek, width, height }: Props & { width: 
         <path d={`${bpath}L${W - PADR} ${brY + BR_H} L${GUTTER} ${brY + BR_H} Z`} fill="#5ad28a22" />
         <path d={bpath} fill="none" stroke="#5ad28a" strokeWidth={1.3} />
 
-        {st.map((t, i) => (t >= winStart - 1 && t <= winEnd) ? (
-          <rect key={i} x={x(t)} y={colY} width={Math.max(1, (i + 1 < st.length ? x(st[i + 1]) : x(winEnd)) - x(t)) + 0.5} height={COL_H} fill={colorHex[colourAt(i)] || "#333"} />
-        ) : null)}
-
         {(plan.dir_marks || []).filter((m) => m.t >= winStart && m.t <= winEnd).map((m, k) => (
           <g key={k}>
             <line x1={x(m.t)} y1={dirY} x2={x(m.t)} y2={modesBottom} stroke="#ffffff14" strokeDasharray="3 3" />
@@ -133,21 +119,8 @@ function Lanes({ plan, pos, colorHex, onSeek, width, height }: Props & { width: 
           </g>
         ))}
 
-        {modeSegs.map((s, k) => {
-          const next = modeSegs[k + 1];
-          return next && next.t0 - s.t1 < 0.4 && next.t0 < winEnd && s.t1 > winStart ? (
-            <line key={"c" + k} x1={x(Math.min(s.t1, winEnd))} y1={yMode(s.mode!)} x2={x(Math.max(next.t0, winStart))} y2={yMode(next.mode!)} stroke="#ffffff22" strokeWidth={1} />
-          ) : null;
-        })}
-        {modeSegs.filter((s) => s.t1 > winStart && s.t0 < winEnd).map((s, k) => (
-          <g key={k}>
-            <line x1={x(Math.max(s.t0, winStart))} y1={yMode(s.mode!)} x2={x(Math.min(s.t1, winEnd))} y2={yMode(s.mode!)} stroke={colorHex[s.color] || "#888"} strokeWidth={2} />
-            {s.t0 >= winStart - 0.2 && <circle cx={x(s.t0)} cy={yMode(s.mode!)} r={2.5} fill={colorHex[s.color] || "#888"} stroke="#0a0c11" />}
-          </g>
-        ))}
-
         {groups.map((fam, g) => freq.map((c, ci) => (
-          <rect key={`sw-${fam}-${ci}`} x={GUTTER + 1} y={subTop(g, ci) + 0.5} width={3.5} height={Math.max(1, SUB_H - 1.5)} fill={colorHex[c] || "#444"} />
+          <rect key={`sw-${fam}-${ci}`} x={GUTTER + 1} y={subTop(g, ci) + 0.5} width={2.5} height={Math.max(1, SUB_H - 1.2)} fill={colorHex[c] || "#444"} />
         )))}
         {winSegs.filter((s) => s.kind === "mode" && groups.includes(s.family)).map((s, k) => {
           const g = groups.indexOf(s.family); let ci = freq.indexOf(s.color); if (ci < 0) ci = nSub - 1;
@@ -167,7 +140,7 @@ function Lanes({ plan, pos, colorHex, onSeek, width, height }: Props & { width: 
                   tickFormat={(v) => fmtTime(v as number)}
                   tickLabelProps={() => ({ fill: "#5b6273", fontSize: 8, textAnchor: "middle" })} />
 
-      {([["BPM", bpmY + BPM_H / 2], ["Bright", brY + BR_H / 2], ["Colour", colY + COL_H / 2], ["Dir", dirY + DIR_H / 2], ["Mode", modeLineY + MODE_H / 2]] as [string, number][])
+      {([["BPM", bpmY + BPM_H / 2], ["Bright", brY + BR_H / 2], ["Dir", dirY + DIR_H / 2]] as [string, number][])
         .map(([s, y]) => <g key={s}>{rlabel(s, y)}</g>)}
       {groups.map((fam, g) => <g key={fam}>{rlabel(fam, subTop(g, 0) + groupH / 2, "#c7ccd8")}</g>)}
 
