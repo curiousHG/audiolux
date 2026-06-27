@@ -40,10 +40,12 @@ def test_schema_complete(click_120):
     assert tl["beats"] and tl["bpm"] > 0
 
 
-def test_spectrum_bounded(click_120):
+def test_spectrum_nonnegative(click_120):
     spec = np.array(click_120["spec"])
     assert spec.shape[1] == 40
-    assert spec.min() >= 0.0 and spec.max() <= 1.0   # the 'bars too high' regression
+    # spectrum is no longer top-clipped (loud transients keep their real height; the
+    # UI auto-ranges the amplitude axis) — only the floor and finiteness are required
+    assert spec.min() >= 0.0 and np.isfinite(spec).all()
 
 
 def test_color_indices_and_mood_in_range(click_120):
