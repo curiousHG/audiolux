@@ -8,6 +8,7 @@ export function useCatalog() {
   const [families, setFamilies] = useState<FamilyInfo[]>([]);
   const [colorHex, setColorHex] = useState<Record<string, string>>({});
   const [barColors, setBarColors] = useState<string[]>([]);
+  const [barFreqs, setBarFreqs] = useState<number[]>([]);
 
   useEffect(() => {
     get<{ groups: ModeGroup[] }>("/api/modes").then((j) => setGroups(j.groups || []));
@@ -15,6 +16,7 @@ export function useCatalog() {
       setFamilies(j.families || []);
       setColorHex(j.color_hex || {});
       setBarColors(j.bar_colors || []);
+      setBarFreqs(j.bar_freqs || []);
     });
   }, []);
 
@@ -26,5 +28,5 @@ export function useCatalog() {
     return m;
   }, [groups]);
 
-  return { groups, families, colorHex, barColors, num2name };
+  return { groups, families, colorHex, barColors, barFreqs, num2name };
 }

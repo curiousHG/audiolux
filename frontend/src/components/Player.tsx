@@ -179,7 +179,9 @@ const Player = forwardRef<PlayerHandle, Props>(function Player(
       {videoId && (
         <div className="flex-1 min-h-0 flex flex-col gap-1.5">
           {title && <div className="text-sm font-medium truncate shrink-0" title={title}>♪ {title}</div>}
-          <div className="video-frame flex-1 min-h-0 w-full rounded-xl overflow-hidden bg-black border border-line"><div ref={holder} /></div>
+          <div className="video-frame flex-1 min-h-0 w-full flex items-center justify-center">
+            <div className="video-box rounded-xl overflow-hidden bg-black border border-line"><div ref={holder} /></div>
+          </div>
           <div className="text-[11px] text-mute text-center shrink-0">
             {load === "error" ? `✗ ${err}` :
               load === "ready" ? "✓ lights synced to this track" :

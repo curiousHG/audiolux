@@ -21,6 +21,7 @@ export default function App() {
   const ex = useExplain(m.refreshPlan);
   const [page, setPage] = useState<Page>("player");
   const [powerOn, setPowerOn] = useState(true);
+  const [telemW, setTelemW] = usePersist("audiolux.telemW", 300);      // draggable, saved
   const [tuningW, setTuningW] = usePersist("audiolux.tuningW", 360);   // draggable, saved
   const [timelineH, setTimelineH] = usePersist("audiolux.timelineH", 300);
 
@@ -34,16 +35,19 @@ export default function App() {
         {/* PLAYER — fills the viewport, no scroll. Always mounted (audio + ticks keep
             running across pages); only hidden via CSS so the timeline resumes on return. */}
         <div className={page === "player" ? "h-full flex flex-col gap-1 min-h-0" : "hidden"}>
-          {/* top: [ video + telemetry ] | drag | [ tuning ] */}
+          {/* top: [ trackers + spectrum ] | drag | [ video ] | drag | [ tuning ] */}
           <div className="flex-1 min-h-0 flex gap-1">
-            <div className="flex-1 min-w-0 flex flex-col gap-2">
+            <div className="shrink-0 min-h-0 flex flex-col" style={{ width: telemW }}>
+              <Telemetry telem={m.telem} hist={m.hist.current} colorHex={cat.colorHex}
+                         barColors={cat.barColors} barFreqs={cat.barFreqs} num2name={cat.num2name} hasTrack={!!m.plan} />
+            </div>
+            <Divider axis="x" onResize={(d) => setTelemW((w) => Math.max(180, w + d))} />
+            <div className="flex-1 min-w-[360px] min-h-0 flex flex-col">
               <Player ref={m.playerRef} active={!m.micOn} smart={m.smart} onSmart={m.onSmart}
                       strobe={m.strobe} onStrobe={m.onStrobe}
                       onTrackState={m.onTrackState} onPlayingChange={m.onPlaying} />
-              <Telemetry telem={m.telem} hist={m.hist.current} colorHex={cat.colorHex}
-                         barColors={cat.barColors} num2name={cat.num2name} hasTrack={!!m.plan} />
             </div>
-            <Divider axis="x" onResize={(d) => setTuningW((w) => clamp(w - d, 260, 680))} />
+            <Divider axis="x" onResize={(d) => setTuningW((w) => Math.max(220, w - d))} />
             <div className="shrink-0 min-h-0" style={{ width: tuningW }}>
               <Tuning ex={ex} />
             </div>
