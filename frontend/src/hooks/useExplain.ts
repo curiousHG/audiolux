@@ -11,7 +11,7 @@ export interface Explain {
   mood_families: Record<string, string[]>;
   freq_colors: string[];
   color_hex: Record<string, string>;
-  speed: { lo: number; span: number; min: number; max: number };
+  speed: { min: number; max: number; tempo_w: number; drive_w: number };
   dsp: { sr: number; n_fft: number; hop: number; nbars: number; fps: number };
   configs: string[];
 }
@@ -37,7 +37,8 @@ export function useExplain(onPlanChange: () => void) {
     const p = data.params[k];
     if (p.reanalyse) setBusy(true);
     await get(`/api/tune?name=${k}&value=${vals[k]}`);
-    if (p.reanalyse) { setBusy(false); onPlanChange(); }
+    if (p.reanalyse) setBusy(false);
+    onPlanChange();                       // runtime params (e.g. broadband threshold) reshape the plan too
   }, [data, vals, onPlanChange]);
 
   const loadConfig = useCallback(async (name: string) => {
