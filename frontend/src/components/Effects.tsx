@@ -30,14 +30,26 @@ export default function Effects({ act, groups }: { act: (u: string) => void; gro
   }
   function chooseMode(i: number) { setSel(i); apply(i, fwd); }
   function setDir(f: boolean) { setFwd(f); apply(sel, f); }
+  // Find the effect (and direction) that owns a given mode number; keeps the
+  // dropdown + direction toggle in sync with whatever number is shown.
+  function syncTo(v: number): boolean {
+    for (let i = 0; i < effects.length; i++) {
+      const e = effects[i];
+      if (e.single === v || e.fwd === v || e.open === v) { setSel(i); setFwd(true); return true; }
+      if (e.bwd === v || e.close === v) { setSel(i); setFwd(false); return true; }
+    }
+    return false;
+  }
+  // Typing/stepping the number box: reflect it in the dropdown immediately (no send).
+  function onNum(s: string) {
+    setMd(s);
+    const v = parseInt(s);
+    if (Number.isFinite(v)) syncTo(v);
+  }
   function go(n: number) {
     const v = Math.max(1, Math.min(255, n || 1));
     setMd(String(v));
-    for (let i = 0; i < effects.length; i++) {
-      const e = effects[i];
-      if (e.single === v || e.fwd === v || e.open === v) { setSel(i); setFwd(true); return act("/api/mode?m=" + v); }
-      if (e.bwd === v || e.close === v) { setSel(i); setFwd(false); return act("/api/mode?m=" + v); }
-    }
+    syncTo(v);
     act("/api/mode?m=" + v);
   }
 
@@ -79,7 +91,9 @@ export default function Effects({ act, groups }: { act: (u: string) => void; gro
       </div>
       <div className="flex gap-2 items-center mt-3">
         <button className={cx(btn, "flex items-center justify-center gap-0.5")} title="Previous mode" onClick={() => go((parseInt(md) || 1) - 1)}><ChevronLeft size={16} /> Prev</button>
-        <input className="flex-1 text-center" type="number" min={1} max={255} value={md} onChange={(e) => setMd(e.target.value)} />
+        <input className="flex-1 text-center" type="number" min={1} max={255} value={md}
+               onChange={(e) => onNum(e.target.value)}
+               onKeyDown={(e) => e.key === "Enter" && go(parseInt(md) || 1)} />
         <button className={cx(btn, "flex items-center justify-center gap-0.5")} title="Next mode" onClick={() => go((parseInt(md) || 1) + 1)}>Next <ChevronRight size={16} /></button>
         <button className={cx(btn, "!flex-[0.7]")} onClick={() => go(parseInt(md) || 1)}>Go</button>
       </div>
