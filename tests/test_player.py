@@ -32,20 +32,21 @@ def test_drive_uses_color_capable_family_and_matches_color(catalog, num2name):
     assert modes_sent, "expected at least one effect-mode command"
     names = [num2name[p[3]] for p in modes_sent]
     assert all("RD" in n for n in names), f"all modes should be red: {names}"
-    assert pl.cur_family in ("Run", "Trailing", "Curtain", "Swab")
+    assert pl.cur_family in ("Run", "Trailing", "Curtain")
     assert pl.color_code == "RD"            # reported colour matches the light
 
 
 def test_peak_emits_colored_strobe_not_white_mode(catalog):
-    # RD music in 'peak' mood -> coloured solid-colour strobe, never the white Strobe mode
+    # RD music in 'peak' mood -> software colour strobe: flashes red (255,48,48) and
+    # dark, never the white Strobe mode.
     fc, pl = build(catalog, auto_family=True, peak_strobe=True)
     pl.load({"id": "x", "duration": 8}, make_timeline(moods=3, colors=M.FREQ_COLORS.index("RD")))
     drive_ticks(pl)
     colors = fc.cmds(0x07)
     assert colors, "peak should emit solid-colour (strobe) commands"
-    # the 'on' flashes are red (255,48,48); 'off' flashes are black
     lit = [(p[3], p[4], p[5]) for p in colors if (p[3], p[4], p[5]) != (0, 0, 0)]
-    assert lit, "strobe should have lit (non-black) frames"
+    dark = [(p[3], p[4], p[5]) for p in colors if (p[3], p[4], p[5]) == (0, 0, 0)]
+    assert lit and dark, "strobe should have both lit and dark (off-phase) frames"
     assert all(r > g and r > b for r, g, b in lit), f"strobe should be red: {lit}"
     assert WHITE_STROBE_MODE not in [p[3] for p in fc.cmds(0x03)]
 

@@ -20,33 +20,38 @@ from backend.logging_config import get_logger
 log = get_logger("player")
 
 
-# tempo -> animation speed: sp = SPEED_LO + (bpm - lo)/span * SPEED_SPAN, where
-# `lo`/`span` are tunable (params.speed_bpm_lo / speed_span)
-SPEED_LO, SPEED_SPAN = 25, 75
+# Detected tempo is ~constant within a song so sets only a cross-song baseline; the
+# live "drive" supplies within-song movement and lets speed reach the whole range:
+#     sp = SPEED_MIN + (SPEED_MAX-SPEED_MIN) · clip(TEMPO_W·tempo01 + DRIVE_W·drive, 0, 1)
 SPEED_MIN, SPEED_MAX = 5, 100
+TEMPO_W, DRIVE_W = 0.3, 0.9
 
 
 def _rgb(color_code):
-    h = M.COLOR_HEX.get(color_code, "#ffffff").lstrip("#")
-    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    """Resolve a colour code to an (r, g, b) tuple via the hex palette."""
+    hex_str = M.COLOR_HEX.get(color_code, "#ffffff").lstrip("#")
+    return int(hex_str[0:2], 16), int(hex_str[2:4], 16), int(hex_str[4:6], 16)
 
 
 def _clamp(v, lo, hi):
+    """Clamp v into the inclusive [lo, hi] range."""
     return lo if v < lo else hi if v > hi else v
 
 
 class PlayerEngine:
     def __init__(self, controller, engine):
+        """Wire the player to its strip controller and the shared mic engine."""
         self.c = controller
         self.engine = engine            # shares cfg, active_families, catalog
         self.catalog = engine.catalog
-        self.track = None               # {id,title,uploader,duration}
-        self.tl = None                  # analysed timeline dict
+        self.track = None
+        self.tl = None
         self._loading = False
         self._loading_task = None
         self._reset_runtime()
 
     def _reset_runtime(self):
+        """Reset all per-track playback/runtime state to defaults."""
         self.pos = 0.0
         self.playing = False
         self.beat_count = 0
@@ -55,18 +60,21 @@ class PlayerEngine:
         self.cur_mode = None
         self.cur_family = None
         self.color_code = "RD"          # actual colour the strip is showing
-        self.music_color = "RD"         # per-frame colour the music suggests
+        self.music_color = "RD"         # colour the music suggests
         self.dir_forward = True
         self.brightness_val = 0
         self.speed_val = 0
         self.centroid = 0.0
         self.bpm_local = 0.0
+        self.drive = 0.0
         self.mood = 0
         self.spectrum = []
         self.beat_flash = 0.0
         self._strobe_on = False
-        self._last_bright = -1
-        self._last_speed = -1
+        self._dev_bright = -999
+        self._dev_speed = -999
+        self._tokens = 0.0
+        self._token_t = -999.0
         self._last_t = -999.0
         self._prev_playing = False
         self.plan = None
@@ -76,9 +84,11 @@ class PlayerEngine:
 
     @property
     def loaded(self) -> bool:
+        """True once a track timeline has been loaded."""
         return self.tl is not None
 
     def load(self, track: dict, timeline: dict):
+        """Load a track + its analysed timeline and reset runtime state."""
         self.track = track
         self.tl = timeline
         self._reset_runtime()
@@ -87,12 +97,14 @@ class PlayerEngine:
                  timeline.get("bpm"), len(timeline.get("beats", [])))
 
     def _frame_at(self, t):
-        n = len(self.tl["bright"])
+        """Return the clamped timeline frame index for playback time t."""
+        frame_count = len(self.tl["bright"])
         i = int(t / self.tl["dt"])
-        return _clamp(i, 0, n - 1)
+        return _clamp(i, 0, frame_count - 1)
 
     # ----- precomputed mode plan (followed by tick, drawn by the UI) -----
     def ensure_plan(self):
+        """Rebuild the mode plan if the config/timeline changed; return it."""
         if not self.loaded:
             self.plan = None
             return None
@@ -105,6 +117,7 @@ class PlayerEngine:
         return self.plan
 
     def _seg_at(self, t):
+        """Return the plan segment index active at time t, or -1 if none."""
         if not self._plan_t0:
             return -1
         return max(0, bisect.bisect_right(self._plan_t0, t) - 1)
@@ -114,24 +127,24 @@ class PlayerEngine:
         Sampled densely (~8/s) so the graph tracks the per-frame brightness and the
         per-frame strobe colour closely — a truthful representation of what's sent."""
         bright, colors, dt = self.tl["bright"], self.tl["color"], self.tl["dt"]
-        bpmc = self.tl.get("bpm_curve") or []
+        bpm_curve = self.tl.get("bpm_curve") or []
         cfg = self.engine.cfg
-        # the ACTUAL brightness sent: floor + bright·(100−floor), as a 0..1 fraction
-        fl = (cfg["bright_floor"] / 100.0) if cfg.get("react_bright", True) else 0.0
-        m = len(bright)
-        step = max(1, m // n)
-        idx = range(0, m, step)
+        floor_frac = (cfg["bright_floor"] / 100.0) if cfg.get("react_bright", True) else 0.0
+        frame_count = len(bright)
+        step = max(1, frame_count // n)
+        indices = range(0, frame_count, step)
         return {
-            "sig_t": [round(i * dt, 2) for i in idx],
-            "level": [round(fl + bright[i] * (1 - fl), 3) for i in idx],
-            "scolor": [M.FREQ_COLORS[colors[i]] for i in idx],
-            "bpm_curve": [bpmc[i] for i in idx] if bpmc else [],
+            "sig_t": [round(i * dt, 2) for i in indices],
+            "level": [round(floor_frac + bright[i] * (1 - floor_frac), 3) for i in indices],
+            "scolor": [M.FREQ_COLORS[colors[i]] for i in indices],
+            "bpm_curve": [bpm_curve[i] for i in indices] if bpm_curve else [],
             "bright_floor": cfg["bright_floor"],
             "freq_colors": M.FREQ_COLORS,
         }
 
     # ----- driven by the browser audio clock -----
     async def tick(self, t: float, playing: bool):
+        """Advance to audio time t and send the due light commands for this frame."""
         if not self.loaded:
             return
         self.ensure_plan()
@@ -143,12 +156,13 @@ class PlayerEngine:
         self.dir_forward = bool(self.tl["dir"][i])
         self.mood = self.tl.get("mood", [0])[i] if self.tl.get("mood") else 0
         self.bpm_local = self.tl["bpm_curve"][i] if self.tl.get("bpm_curve") else self.tl["bpm"]
+        self.drive = self.tl["drive"][i] if self.tl.get("drive") else 0.0
         self.spectrum = self.tl.get("spec", [[]])[i] if self.tl.get("spec") else []
 
         beats = self.tl["beats"]
-        bc = bisect.bisect_right(beats, t)
-        self.beat_count = bc
-        self.beat_flash = 1.0 if (bc > 0 and t - beats[bc - 1] < 0.12) else self.beat_flash * 0.6
+        beat_count = bisect.bisect_right(beats, t)
+        self.beat_count = beat_count
+        self.beat_flash = 1.0 if (beat_count > 0 and t - beats[beat_count - 1] < 0.12) else self.beat_flash * 0.6
 
         # power on + take over from the loading animation the moment playback starts
         if playing and not self._prev_playing:
@@ -160,57 +174,83 @@ class PlayerEngine:
         self.playing = playing
         self.pos, self._last_t = t, t
         if not playing:
-            # video paused -> freeze the strip on a static colour (it stops animating)
             if just_paused:
                 await self._safe(self.c.send(P.color(*_rgb(self.color_code)), critical=True))
             return
 
+        segment = None
+        if cfg["switch_modes"] and self.plan and self.plan["segments"]:
+            seg_idx = self._seg_at(t)
+            segment = self.plan["segments"][seg_idx]
+        is_strobe = bool(segment and segment.get("kind") == "strobe")
+
+        want_bright = None
         if cfg["react_bright"]:
-            b = int(cfg["bright_floor"] + bright01 * (100 - cfg["bright_floor"]))
-            self.brightness_val = b
-            if abs(b - self._last_bright) >= 4:
-                self._last_bright = b
-                await self._safe(self.c.send(P.brightness(b), critical=False))
+            want_bright = int(cfg["bright_floor"] + bright01 * (100 - cfg["bright_floor"]))
+            self.brightness_val = want_bright
 
-        # animation speed tracks the DETECTED (local) tempo, so it follows the song
-        if cfg["react_speed"] and self.bpm_local > 0:
-            sp = int(_clamp(round(SPEED_LO + (self.bpm_local - params.get("speed_bpm_lo"))
-                                  / params.get("speed_span") * SPEED_SPAN), SPEED_MIN, SPEED_MAX))
-            self.speed_val = sp
-            if abs(sp - self._last_speed) >= 5:
-                self._last_speed = sp
-                await self._safe(self.c.send(P.speed(sp), critical=False))
-
-        # follow the precomputed plan: apply the segment covering the current time
-        if not (cfg["switch_modes"] and self.plan and self.plan["segments"]):
-            return
-        si = self._seg_at(t)
-        seg = self.plan["segments"][si]
-        if seg["kind"] == "strobe":
-            # coloured strobe — flash solid colours in the live music colour
+        # strobe sent CRITICAL every tick so the on-frame can never be dropped (the old
+        # "stuck dark" bug); no speed commands during a strobe.
+        if is_strobe:
+            if seg_idx != self._seg_idx:
+                self._seg_idx = seg_idx
+                self.cur_mode, self.cur_family = None, "Colour Strobe"
+                bright_level = want_bright if want_bright is not None else 90
+                self._dev_bright = bright_level
+                await self._safe(self.c.send(P.brightness(bright_level), critical=True))
             self._strobe_on = not self._strobe_on
-            self.cur_family, self.cur_mode = "Colour Strobe", None
             self.color_code = self.music_color
             rgb = _rgb(self.music_color) if self._strobe_on else (0, 0, 0)
-            await self._safe(self.c.send(P.color(*rgb), critical=False))
-            self._seg_idx = si
-        elif si != self._seg_idx:                   # entered a new mode segment (incl. after a seek)
-            self._seg_idx = si
-            self.cur_mode, self.cur_family, self.color_code = seg["mode"], seg["family"], seg["color"]
-            await self._safe(self.c.send(P.mode(seg["mode"]), critical=True))
+            await self._safe(self.c.send(P.color(*rgb), critical=True))
+            return
+
+        want_speed = None
+        if cfg["react_speed"] and self.bpm_local > 0:
+            tempo01 = _clamp((self.bpm_local - params.get("speed_bpm_lo")) / params.get("speed_span"), 0.0, 1.0)
+            pace = _clamp(TEMPO_W * tempo01 + DRIVE_W * self.drive, 0.0, 1.0)
+            want_speed = int(round(SPEED_MIN + (SPEED_MAX - SPEED_MIN) * pace))
+            self.speed_val = want_speed
+
+        if segment is not None and seg_idx != self._seg_idx:
+            self._seg_idx = seg_idx
+            self.cur_mode, self.cur_family, self.color_code = segment["mode"], segment["family"], segment["color"]
+            await self._safe(self.c.send(P.mode(segment["mode"]), critical=True))
+
+        # at most ONE non-critical command per tick (bursting gets dropped by the rate
+        # limiter), spent on whichever of brightness/speed has drifted furthest.
+        rate = max(2.0, float(self.c.max_rate))
+        self._tokens = min(self._tokens + max(0.0, t - self._token_t) * rate, 1.0)
+        self._token_t = t
+        if self._tokens >= 1.0:
+            pending = []
+            if want_bright is not None and abs(want_bright - self._dev_bright) >= 3:
+                pending.append((abs(want_bright - self._dev_bright), P.brightness(want_bright), "bright", want_bright))
+            if want_speed is not None and abs(want_speed - self._dev_speed) >= 3:
+                pending.append((abs(want_speed - self._dev_speed), P.speed(want_speed), "speed", want_speed))
+            if pending:
+                _, payload, kind, val = max(pending, key=lambda c: c[0])
+                self._tokens -= 1.0
+                await self._safe(self.c.send(payload, critical=False))
+                if kind == "bright":
+                    self._dev_bright = val
+                else:
+                    self._dev_speed = val
 
     async def stop(self):
+        """Halt playback and cancel any loading animation."""
         self.playing = False
         self._prev_playing = False
         self.stop_loading()
 
     # ----- "loading" light: a gentle breathing pulse while a track preprocesses -----
     def start_loading(self):
+        """Start the breathing 'loading' pulse animation on the strip."""
         self.stop_loading()
         self._loading = True
         self._loading_task = asyncio.create_task(self._loading_pulse())
 
     def stop_loading(self):
+        """Stop the loading pulse animation and cancel its task."""
         self._loading = False
         if self._loading_task:
             self._loading_task.cancel()
@@ -228,8 +268,8 @@ class PlayerEngine:
                     last_hue = hue
                     await self._safe(self.c.send(P.color(*_rgb(hue)), critical=False))
                 phase = (i % 24) / 24.0
-                b = int(12 + 40 * (0.5 - 0.5 * math.cos(2 * math.pi * phase)))   # breathe 12..52
-                await self._safe(self.c.send(P.brightness(b), critical=False))
+                brightness = int(12 + 40 * (0.5 - 0.5 * math.cos(2 * math.pi * phase)))
+                await self._safe(self.c.send(P.brightness(brightness), critical=False))
                 i += 1
                 await asyncio.sleep(0.1)
         except asyncio.CancelledError:
@@ -237,12 +277,14 @@ class PlayerEngine:
 
     @staticmethod
     async def _safe(coro):
+        """Await coro, swallowing any exception (best-effort strip send)."""
         try:
             await coro
         except Exception:
             pass
 
     def state(self) -> dict:
+        """Return the serialisable player state snapshot for the UI."""
         return {
             "loaded": self.loaded,
             "playing": self.playing,
@@ -256,7 +298,7 @@ class PlayerEngine:
             "speed": self.speed_val,
             "centroid": round(self.centroid, 3),
             "color": self.color_code,           # actual colour the strip shows
-            "music_color": self.music_color,    # per-frame colour the music suggests
+            "music_color": self.music_color,    # colour the music suggests
             "family": self.cur_family,
             "mode": self.cur_mode,
             "direction": "fwd" if self.dir_forward else "bwd",
